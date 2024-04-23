@@ -1,0 +1,1575 @@
+---
+title: "TMRC3 202308: Visualizing Analyses"
+author: "atb abelew@gmail.com"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+  code_download: true
+  code_folding: show
+  fig_caption: true
+  fig_height: 7
+  fig_width: 7
+  highlight: default
+  keep_md: false
+  mode: selfcontained
+  number_sections: true
+  self_contained: true
+  theme: readable
+  toc: true
+  toc_float:
+   collapsed: false
+   smooth_scroll: false
+---
+
+<style>
+  body .main-container {
+    max-width: 1600px;
+  }
+</style>
+
+```{r, include=FALSE}
+library(hpgltools)
+library(dplyr)
+library(forcats)
+library(glue)
+knitr::opts_knit$set(
+  progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
+knitr::opts_chunk$set(
+  error = TRUE, fig.width = 8, fig.height = 8, fig.retina = 2,
+  fig.pos = "t", fig.align = "center", dpi = if (knitr::is_latex_output()) 72 else 300,
+  out.width = "100%", dev = "png",
+  dev.args = list(png = list(type = "cairo-png")))
+old_options <- options(digits = 4,
+                       stringsAsFactors = FALSE,
+                       knitr.duplicate.label = "allow")
+ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
+ver <- Sys.getenv("VERSION")
+previous_file <- ""
+rundate <- format(Sys.Date(), format = "%Y%m%d")
+
+##tmp <- try(sm(loadme(filename=gsub(pattern="\\.Rmd", replace="\\.rda\\.xz", x=previous_file))))
+rmd_file <- "02visualization"
+savefile <- gsub(pattern = "\\.Rmd", replace="\\.rda\\.xz", x = rmd_file)
+loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
+```
+
+# Introduction
+
+Moving all of the visualization and diagnostic tasks to this document.
+The metadata and gene annotation data collection tasks are therefore
+in tmrc3_data_structures.Rmd.  The reasons for some of the data
+structure creation in that document is made clear in this document,
+but they are all performed there.
+
+# Notes
+
+1.  Lesion vs Ulcer: Ulcer is the base of the crater of the lesion
+observed.  The lesion is this, the border, and any region with signs
+of inflammation.  It is not known if these metrics are equivalent, or
+if one is better than the other.  Some people do not have ulcers and
+therefore in those cases we can only really consider the lesion size.
+E.g. most people in Colombia have ulcers, which are the cratered sore;
+however there are a few people who have a 'plaque' or some form of
+smaller, less intrusive presentation -- these are still cutaneous.
+
+Thus the lesion size is the more inclusive metric, but potentially
+ulcer size is more informative?  Any inflammation in the skin causes
+the person to be defined as failure.
+
+2. Note from Maria Adelaida: Some chemokines are suggestive of
+   Eosinophil recruitment.
+
+## Goals
+
+These samples are from patients who either successfully cleared a
+Leishmania panamensis infection following treatment, or did not.  They
+include biopsies from each patient along with purifications for
+Monocytes, Neutrophils, and Eosinophils.  When possible, this process
+was repeated over three visits; but some patients did not return
+for the second or third visit.
+
+The over-arching goal is to look for attributes(most likely genes)
+which distinguish patients who do and do not cure the infection after
+treatment.  If possible, these will be apparent on the first visit.
+
+```{r}
+plot_legend(hs_expt)
+plot_nonzero(hs_expt)
+```
+
+## Figure S2 + 1: Non-zero genes after sample filtering
+
+The following plot is essentially identical to the previous with two
+exceptions:
+
+1.  The samples with too few genes (11,000 currently) are gone.  In
+    the current iteration of the datasets Rmd, this comprises either
+    two or three samples.
+2.  The samples are colored by cure(purple)/fail(yellow)
+
+```{r}
+plot_nonzero(tc_valid, plot_labels = FALSE)
+```
+
+## Quick picture before removing miltefosine samples
+
+Maria Adelaida's quote: "I would like one picture of all samples
+including the miltefosine so that I can keep in my mind why we removed
+them."
+
+# PCA with both drugs
+
+The following block will illustrate why we chose to remove the samples
+which were treated with miltefosine.  The short reason: too few
+samples.  The slightly longer reason: miltefosine has a different mode
+of action.
+
+```{r}
+tc_expt_norm <- normalize_expt(hs_expt, filter = TRUE, norm = "quant",
+                               convert = "cpm", transform = "log2") %>%
+  set_expt_batches(fact = "drug")
+
+tc_expt_drug_pca <- plot_pca(tc_expt_norm, cis = NULL)
+tc_expt_drug_pca <- plot_pca(tc_expt_norm)
+tc_expt_drug_pca$plot
+
+tc_expt_nb <- normalize_expt(hs_expt, filter = TRUE, convert = "cpm",
+                             transform = "log2", batch = "svaseq") %>%
+  set_expt_batches(fact = "drug")
+tc_expt_drug_nb_pca <- plot_pca(tc_expt_nb)
+tc_expt_drug_nb_pca$plot
+
+t_expt_drug <- subset_expt(hs_expt, subset = "clinic=='Tumaco'")
+t_expt_norm <- normalize_expt(t_expt_drug, filter = TRUE, norm = "quant",
+                              convert = "cpm", transform = "log2") %>%
+  set_expt_batches(fact = "drug")
+t_expt_drug_pca <- plot_pca(t_expt_norm)
+t_expt_drug_pca$plot
+
+t_expt_nb <- normalize_expt(t_expt_drug, filter = TRUE, convert = "cpm",
+                             transform = "log2", batch = "svaseq") %>%
+  set_expt_batches(fact = "drug")
+t_expt_drug_nb_pca <- plot_pca(t_expt_nb)
+t_expt_drug_nb_pca$plot
+```
+
+# Host Distributions/Visualizations of interest
+
+The sets of samples used to visualize the data will also comprise the
+sets used when later performing the various differential expression
+analyses.
+
+## Global metrics
+
+Start out with some initial metrics of all samples.  The most obvious
+are plots of the numbers of non-zero genes observed, heatmaps showing
+the relative relationships among the samples, the relative library
+sizes, and some PCA.  It might be smart to split the library sizes up
+across subsets of the data, because they have expanded too far to see
+well on a computer screen.
+
+The most likely factors to query when considering the entire dataset
+are cure/fail, visit, and cell type.  This is the level at which we
+will choose samples to exclude from future analyses.
+
+```{r}
+plot_legend(tc_biopsies)$plot
+plot_libsize(tc_biopsies)$plot
+plot_nonzero(tc_biopsies)$plot
+```
+
+plot_libsize_prepost attempts to provide an idea about how much data
+is lost when low-count filtering the data.
+
+The first plot it produces is a barplot of the number of reads removed
+by the filter from each sample.  The second plot has two bars, the top
+bar is labeled with the number of low-count genes before the filter.
+The lower bar represents the number after the filter and is assumed to
+be quite low.
+
+```{r}
+biopsy_prepost <- plot_libsize_prepost(tc_biopsies)
+biopsy_prepost
+#biopsy_prepost$count_plot
+#biopsy_prepost$lowgene_plot
+## Minimum number of biopsy genes: ~ 14,000
+
+plot_libsize(tc_eosinophils)
+plot_nonzero(tc_eosinophils)
+eosinophil_prepost <- plot_libsize_prepost(tc_eosinophils)
+eosinophil_prepost$count_plot
+eosinophil_prepost$lowgene_plot
+## Minimum number of eosinophil genes: ~ 13,500
+
+plot_libsize(tc_monocytes)
+plot_nonzero(tc_monocytes)
+monocyte_prepost <- plot_libsize_prepost(tc_monocytes)
+monocyte_prepost$count_plot
+monocyte_prepost$lowgene_plot
+## Minimum number of monocyte genes: ~ 7,500 before setting the minimum.
+
+plot_libsize(tc_neutrophils)
+plot_nonzero(tc_neutrophils)
+neutrophil_prepost <- plot_libsize_prepost(tc_neutrophils)
+neutrophil_prepost$count_plot
+neutrophil_prepost$lowgene_plot
+## Minimum number of neutrophil genes: ~ 10,000 before setting minimum coverage.
+```
+
+The above block just repeats the same two plots on a per-celltype
+basis: the number of reads observed / sample and a plot of observed
+genes with respect to coverage.  I made some comments with my
+observations about the number of genes.
+
+## Global views of all cell types
+
+Now that those 'global' metrics are out of the way, lets look at some
+global metrics of the data following normalization; the most likely
+plots are of course PCA but also a couple of heatmaps.
+
+### Figure 1
+
+Over time the preference for which samples to include in a 'global'
+PCA has changed, as well as preferences for how to arrange/label/color
+them.  The following shows a couple of perspectives.
+
+```{r}
+tc_type <- set_expt_conditions(tc_valid, fact = "typeofcells") %>%
+  set_expt_batches(fact = "finaloutcome") %>%
+  set_expt_colors(color_choices[["type"]])
+
+tc_norm <- sm(normalize_expt(tc_type, transform = "log2", norm = "quant",
+                             convert = "cpm", filter = TRUE))
+
+tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
+                    plot_title = "PCA - Cell type", size_column = "visitnumber")
+tc_pca$plot
+tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
+                   plot_title = "PCA - Cell type")
+tc_pca$plot
+
+tc_pca_nosize <- plot_pca(tc_norm, plot_labels = FALSE)
+tc_pca_nosize$plot
+
+write.csv(tc_pca$table, file = "excel/tc_donor_pca_coords.csv")
+tc_cf_norm <- set_expt_batches(tc_norm, fact = "visitnumber")
+tc_cf_corheat <- plot_corheat(tc_cf_norm, plot_title = "Heirarchical clustering:
+         cell types")
+tc_cf_corheat$plot
+
+tc_cf_disheat <- plot_disheat(tc_cf_norm, plot_title = "Heirarchical clustering:
+         cell types")
+tc_cf_disheat$plot
+```
+
+## Figure 1B: Transcriptomic profiles of primary innate cells
+
+A potential figure legend for the following images might include:
+
+The observed counts per gene for all of the clinical samples were
+filtered, log transformed, cpm converted, and quantile normalized.
+The colors were defined by cell types and shapes by patient visit.
+When the first two principle components were plotted, clustering was
+observed by cell type.  The biopsy samples were significantly
+different from the innate immune cell types.
+
+```{r}
+fig1v2_norm <- normalize_expt(tc_type, transform = "log2",
+                              convert = "cpm", norm = "quant", filter = TRUE)
+fig1v2_pca <- plot_pca(fig1v2_norm, cis = FALSE)
+fig1v2_pca$plot
+```
+
+# Compare samples by clinic
+
+Spoiler alert:  This section will eventually suggest pretty strongly
+that we will not easily be able to use the Cali samples.  Thus, after
+finishing it, we will likely exclude those samples.
+
+Take a moment to view the biopsy samples.  We separated them by clinic
+(Cali or Tumaco), and this view of the samples is the only one which
+does not suggest a strong difference between the two clinics.
+However, it also suggests that the biopsy samples will not prove very
+helpful.
+
+## Biopsies by clinic
+
+There are too few biopsy samples to get a strong view of cure/fail.
+In addition, these are 'messier' than any other sample type.  As a
+result, it is difficult to discern a pattern in them which help
+elucidate cure vs. fail.  If we play with the various parameters used
+to perform the count modification via ruv/sva, we get slightly
+different views, some more evocative than others; but the following is
+our most canonical view.
+
+### Figure 3E: Biopsies
+
+```{r}
+tc_biopsies_norm <- normalize_expt(tc_biopsies, transform = "log2",
+                                   convert = "cpm", norm = "quant", filter = TRUE)
+tc_biopsies_pca <- plot_pca(tc_biopsies_norm)
+tc_biopsies_pca
+
+tc_biopsies_nb <- normalize_expt(tc_biopsies, transform = "log2",
+                                 convert = "cpm", batch = "svaseq", filter = TRUE)
+tc_biopsies_nb_pca <- plot_pca(tc_biopsies_nb)
+pp(file = "figures/figure3E_biopsies.svg")
+tc_biopsies_nb_pca$plot
+dev.off()
+tc_biopsies_nb_pca$plot
+```
+
+## Patient Race and clinic?
+
+How strong is the effect of ethnicity/ethnicity+clinic?  In the worst
+case scenario, these surrogates could make interpreting the results
+problematic.  The following blocks will explore that question a little
+and I think come to the general conclusion that race and/or clinic are
+not significant problems.
+
+### All samples, both clinics
+
+Compared to the cell type effect, clinic/race is, as we already know,
+utterly insignificant.  The question still stands, how significant?
+There does appear to be an effect in the data which is relevant to
+race.  I think if we want to be able to explore this fully, we would
+need more people.
+
+```{r}
+etnia_expt <- set_expt_conditions(tc_valid, fact = "clinic_etnia") %>%
+  set_expt_colors(color_choices[["clinic_etnia"]])
+etnia_norm <- normalize_expt(etnia_expt, transform = "log2", convert = "cpm",
+                             filter = TRUE, norm = "quant")
+plot_pca(etnia_norm)
+
+etnia_nb <- normalize_expt(etnia_expt, transform = "log2", convert = "cpm",
+                           filter = TRUE, batch = "svaseq")
+plot_pca(etnia_nb)
+```
+
+#### Only Tumaco
+
+There is an imbalance in the identity of people who attended each
+clinic.  Given that we are focusing on the Tumaco samples, here is the
+distribution of race/cell type:
+
+```{r}
+t_etnia_norm <- normalize_expt(t_etnia_expt, transform = "log2", convert = "cpm",
+                               filter = TRUE, norm = "quant")
+plot_pca(t_etnia_norm)
+
+t_etnia_nb <- normalize_expt(t_etnia_expt, transform = "log2", convert = "cpm",
+                             filter = TRUE, batch = "svaseq")
+plot_pca(t_etnia_nb)
+```
+
+### Biopsy samples, both clinics.
+
+The biopsy samples are missing people of indigenous origin who went to
+the Tumaco clinic.
+
+```{r}
+tc_bp_ec <- set_expt_conditions(tc_biopsies, fact = "clinic_etnia") %>%
+  set_expt_colors(color_choices[["clinic_etnia"]])
+etnia_bp_norm <- normalize_expt(tc_bp_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(etnia_bp_norm)
+```
+
+#### Biopsy samples, Tumaco.
+
+The biopsy samples are by far the 'messiest,' that remains true when
+considering the ethnicity of the individual patients.
+
+```{r}
+t_bp_ec <- set_expt_conditions(tc_biopsies, fact = "etnia") %>%
+  set_expt_colors(color_choices[["ethnicity"]])
+t_etnia_bp_norm <- normalize_expt(t_bp_ec, transform = "log2", convert = "cpm",
+                                  filter = TRUE, norm = "quant")
+plot_pca(t_etnia_bp_norm)
+```
+
+I think there are not enough samples to try sva with this.
+
+### Eosinophil samples, both clinics.
+
+When we ask the same question of the clinical cell types, it is
+possible to see more samples, but not a significantly clearer view of
+the race effect on the transcriptional profile.
+
+```{r}
+tc_eo_ec <- set_expt_conditions(tc_eosinophils, fact = "clinic_etnia") %>%
+  set_expt_colors(color_choices[["clinic_etnia"]])
+etnia_eo_norm <- normalize_expt(tc_eo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(etnia_eo_norm)
+
+etnia_eo_nb <- normalize_expt(tc_eo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, batch = "svaseq")
+plot_pca(etnia_eo_nb)
+```
+
+#### Eosinophil samples, Tumaco.
+
+The eosinophils are our least-abundant cell type, as such the view of
+ethnicity using them is particularly problematic; but we do at least
+have a few samples from each group.  With that in mind, these appear
+to show some significant difference among the three groups.
+
+```{r}
+t_eo_ec <- set_expt_conditions(t_eosinophils, fact = "etnia") %>%
+  set_expt_colors(color_choices[["ethnicity"]])
+t_etnia_eo_norm <- normalize_expt(t_eo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(t_etnia_eo_norm)
+
+t_etnia_eo_nb <- normalize_expt(t_eo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, batch = "svaseq")
+plot_pca(t_etnia_eo_nb)
+```
+
+### Monocyte samples, both clinics.
+
+In general, the monocytes show the strongest differences in any
+comparison we have performed.  This is true in the context of race as
+well.  Thus, even before applying sva, we see some separation among
+the monocyte samples with respect to ethnicity.
+
+```{r}
+tc_mo_ec <- set_expt_conditions(tc_monocytes, fact = "clinic_etnia") %>%
+  set_expt_colors(color_choices[["clinic_etnia"]])
+etnia_mo_norm <- normalize_expt(tc_mo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(etnia_mo_norm)
+
+etnia_mo_nb <- normalize_expt(tc_mo_ec, transform = "log2", convert = "cpm",
+                              filter = TRUE, batch = "svaseq")
+plot_pca(etnia_mo_nb)
+```
+
+#### Monocyte samples, Tumaco.
+
+The ability to see some separation by ethnicity among the monocyte
+samples remains, at least slightly, true when considering only the
+Tumaco samples.
+
+```{r}
+t_mo_ec <- set_expt_conditions(t_monocytes, fact = "etnia") %>%
+  set_expt_colors(color_choices[["ethnicity"]])
+t_etnia_mo_norm <- normalize_expt(t_mo_ec, transform = "log2", convert = "cpm",
+                                  filter = TRUE, norm = "quant")
+plot_pca(t_etnia_mo_norm)
+
+t_etnia_mo_nb <- normalize_expt(t_mo_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, batch = "svaseq")
+plot_pca(t_etnia_mo_nb)
+```
+
+### Neutrophil samples, both clinics.
+
+In a fashion similar to our other effects, the neutrophils are intermediate.
+
+```{r}
+tc_ne_ec <- set_expt_conditions(tc_neutrophils, fact = "clinic_etnia") %>%
+    set_expt_colors(color_choices[["clinic_etnia"]])
+etnia_ne_norm <- normalize_expt(tc_ne_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(etnia_ne_norm)
+
+etnia_ne_nb <- normalize_expt(tc_ne_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, batch = "svaseq")
+plot_pca(etnia_ne_nb)
+```
+
+#### Neutrophil samples, Tumaco.
+
+The Tumaco-only neutrophils are something of a counter example to the
+previous statement.  The easiest to discern race-effect appears to me
+to come from the Neutrophils from Tumaco.
+
+```{r}
+t_ne_ec <- set_expt_conditions(t_neutrophils, fact = "etnia") %>%
+    set_expt_colors(color_choices[["ethnicity"]])
+t_etnia_ne_norm <- normalize_expt(t_ne_ec, transform = "log2", convert = "cpm",
+                                  filter = TRUE, norm = "quant")
+plot_pca(t_etnia_ne_norm)
+
+t_etnia_ne_nb <- normalize_expt(t_ne_ec, transform = "log2", convert = "cpm",
+                                filter = TRUE, batch = "svaseq")
+plot_pca(t_etnia_ne_nb)
+```
+
+## Sex
+
+The imbalances observed with respect to clinic/race are significantly
+less profound than those observed with respect to the sex of patients
+who participated in the study.  It is almost certainly possible to see
+some degree of a sex-based effect in the available transcriptomes.
+
+```{r}
+sex_expt <- set_expt_conditions(tc_valid, fact = "sex") %>%
+  set_expt_colors(color_choices[["sex"]])
+sex_norm <- normalize_expt(sex_expt, transform = "log2", convert = "cpm",
+                           filter = TRUE, norm = "quant")
+plot_pca(sex_norm)
+
+sex_nb <- normalize_expt(sex_expt, transform = "log2", convert = "cpm",
+                         filter = TRUE, batch = "svaseq")
+plot_pca(sex_nb)
+```
+
+## Sex and clinic
+
+### All samples, both clinics
+
+```{r}
+clinic_sex_expt <- set_expt_conditions(tc_valid, fact = "clinic_sex") %>%
+  set_expt_colors(color_choices[["clinic_sex"]])
+clinic_sex_norm <- normalize_expt(clinic_sex_expt, transform = "log2", convert = "cpm",
+                                  filter = TRUE, norm = "quant")
+plot_pca(clinic_sex_norm)
+
+clinic_sex_nb <- normalize_expt(clinic_sex_expt, transform = "log2", convert = "cpm",
+                             filter = TRUE, batch = "svaseq")
+plot_pca(clinic_sex_nb)
+```
+
+### Biopsy samples, both clinics.
+
+```{r}
+tc_bp_sc <- set_expt_conditions(tc_biopsies, fact = "clinic_sex") %>%
+  set_expt_colors(color_choices[["clinic_sex"]])
+clinic_sex_bp_norm <- normalize_expt(tc_bp_sc, transform = "log2", convert = "cpm",
+                                filter = TRUE, norm = "quant")
+plot_pca(clinic_sex_bp_norm)
+```
+
+I think there are not enough samples to try sva with this.
+
+### Eosinophil samples, both clinics.
+
+```{r
+tc_eo_sc <- set_expt_conditions(tc_eosinophils, fact = "clinic_sex") %>%
+  set_expt_colors(color_choices[["clinic_sex"]])
+clinic_sex_eo_norm <- normalize_expt(tc_eo_sc, transform = "log2", convert = "cpm",
+                                     filter = TRUE, norm = "quant")
+plot_pca(clinic_sex_eo_norm)
+```
+
+### Monocyte samples, both clinics.
+
+```{r}
+tc_mo_clinic_sex <- set_expt_conditions(tc_monocytes, fact = "clinic_sex") %>%
+  set_expt_colors(color_choices[["clinic_sex"]])
+tc_mo_clinic_sex_norm <- normalize_expt(tc_mo_clinic_sex, transform = "log2", convert = "cpm",
+                                        filter = TRUE, norm = "quant")
+plot_pca(tc_mo_clinic_sex_norm)
+
+tc_mo_clinic_sex_nb <- normalize_expt(tc_mo_clinic_sex, transform = "log2", convert = "cpm",
+                                      filter = TRUE, batch = "svaseq")
+plot_pca(tc_mo_clinic_sex_nb)
+```
+
+### Neutrophil samples, both clinics.
+
+```{r}
+tc_ne_clinic_sex <- set_expt_conditions(tc_neutrophils, fact = "clinic_sex") %>%
+    set_expt_colors(color_choices[["clinic_sex"]])
+tc_ne_clinic_sex_norm <- normalize_expt(tc_ne_clinic_sex, transform = "log2", convert = "cpm",
+                                        filter = TRUE, norm = "quant")
+plot_pca(tc_ne_clinic_sex_norm)
+```
+
+## Eosinophils by clinic
+
+In contrast, the Eosinophil samples do have significant amounts of
+variance which discriminates the two clinics.  At the time of this
+writing, there are fewer eosinophil samples than monocytes and
+neutrophils; as a result there are no samples which failed from Cali.
+This is somewhat limiting is we wish to look for differences between
+the cure and fail samples which came from the two clinics.
+
+### Figure 3B: Eosinophils
+
+```{r}
+tc_eosinophils_norm <- normalize_expt(tc_eosinophils, transform = "log2",
+                                      convert = "cpm", norm = "quant", filter = TRUE)
+tc_eosinophils_pca <- plot_pca(tc_eosinophils_norm, plot_labels = FALSE)
+tc_eosinophils_pca
+
+tc_eosinophils_nb <- normalize_expt(tc_eosinophils, transform = "log2",
+                                    convert = "cpm", batch = "svaseq", filter = TRUE)
+tc_eosinophils_nb_pca <- plot_pca(tc_eosinophils_nb, plot_labels = FALSE)
+pp(file = "figures/figure3B_eosinophils.svg")
+tc_eosinophils_nb_pca$plot
+dev.off()
+tc_eosinophils_nb_pca$plot
+```
+
+## Monocytes by clinic
+
+In contrast with the eosinophil samples, we have one patient's
+monocyte and neutrophil samples which did not cure.  As we will see,
+there is one person from Cali who did not cure, this person is not
+different with respect to tracscriptome than the other people from Cali.
+
+### Figure 3C: Monocytes
+
+```{r}
+tc_monocytes_norm <- normalize_expt(tc_monocytes, transform = "log2",
+                                       convert = "cpm", norm = "quant", filter = TRUE)
+tc_monocytes_pca <- plot_pca(tc_monocytes_norm, plot_labels = FALSE)
+tc_monocytes_pca
+
+tc_monocytes_nb <- normalize_expt(tc_monocytes, transform = "log2",
+                                  convert = "cpm", batch = "svaseq", filter = TRUE)
+tc_monocytes_nb_pca <- plot_pca(tc_monocytes_nb, plot_labels = FALSE)
+pp(file = "figures/figure3C_monocytes.svg")
+tc_monocytes_nb_pca$plot
+dev.off()
+tc_monocytes_nb_pca$plot
+```
+
+## Neutrophils by clinic
+
+Finally, that same one person does appear to be different than the
+others from Cali when looking at neutrophils.
+
+### Figure 3D: Neutrophils
+
+```{r}
+tc_neutrophils_norm <- normalize_expt(tc_neutrophils, transform = "log2",
+                                      convert = "cpm", norm = "quant", filter = TRUE)
+tc_neutrophils_pca <- plot_pca(tc_neutrophils_norm, plot_labels = FALSE)
+tc_neutrophils_pca
+
+tc_neutrophils_nb <- normalize_expt(tc_neutrophils, transform = "log2",
+                                    convert = "cpm", batch = "svaseq", filter = TRUE)
+tc_neutrophils_nb_pca <- plot_pca(tc_neutrophils_nb, plot_labels = FALSE)
+pp(file = "figures/figure3D_neutrophils.svg")
+tc_neutrophils_nb_pca$plot
+dev.off()
+tc_neutrophils_nb_pca$plot
+```
+
+## PCA: Compare clinics
+
+Now that we have these various subsets, perform an explicit comparison
+of the samples which came from the two clinics.
+
+### Figure 3, panel A: 'ALL Samples'
+
+```{r}
+tc_clinic_type <- tc_valid %>%
+  set_expt_conditions(fact = "clinic") %>%
+  set_expt_batches(fact = "typeofcells")
+
+tc_clinic_type_norm <- normalize_expt(tc_clinic_type, transform = "log2", convert = "cpm",
+                                      norm = "quant", filter = TRUE)
+tc_clinic_type_pca <- plot_pca(tc_clinic_type_norm)
+tc_clinic_type_pca
+tc_clinic_type_nb <- normalize_expt(tc_clinic_type, transform = "log2", convert = "cpm",
+                                    batch = "svaseq", filter = TRUE)
+tc_clinic_type_nb_pca <- plot_pca(tc_clinic_type_nb)
+tc_clinic_type_nb_pca$plot
+pp(file = "figure/figure3a_all_samples.svg")
+tc_clinic_type_nb_pca$plot
+dev.off()
+```
+
+
+```{r}
+tc_clinical_norm <- sm(normalize_expt(tc_clinical, filter = "simple", transform = "log2",
+                                      norm = "quant", convert = "cpm"))
+clinical_pca <- plot_pca(tc_clinical_norm, plot_labels = FALSE,
+                         cis = NULL,
+                         plot_title = "PCA - clinical samples")
+clinical_pca
+
+tc_clinical_nb <- normalize_expt(tc_clinical, filter = "simple", transform = "log2",
+                                 batch = "svaseq", convert = "cpm")
+tc_clinical_nb_pca <- plot_pca(tc_clinical_nb)
+tc_clinical_nb_pca$plot
+
+clinical_pca_info <- pca_information(
+    tc_clinical_norm, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells", "finaloutcome",
+                   "clinic", "donor"))
+clinical_pca_info$anova_neglogp_heatmap
+clinical_pca_info$pca_plots$PC4_PC7
+
+clinical_scores <- pca_highscores(tc_clinical_norm)
+clinical_scores[["highest"]][,"Comp.4"]
+
+test_factors <- c("visitnumber", "typeofcells", "finaloutcome",
+                  "clinic", "sex", "etnia")
+clinical_varpart <- simple_varpart(tc_clinical, factors = test_factors)
+```
+
+## Iterative SVA followed by PCA
+
+Another way to explore the effect of SVA is to iteratively increase
+the number of SVs removed by it and look at some simple plots of the
+resulting data.  Ideally, this should complement the comparison of
+individual SVs vs. PCs performed by Theresa (spoiler alert, I think it
+did).
+
+```{r}
+first <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch = "svaseq", surrogates = 1)
+first_info <- pca_information(
+    first, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+first_info$anova_neglogp_heatmap
+first_info$pca_plots[["PC1_PC2"]]
+
+second <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                         filter = TRUE, batch = "svaseq", surrogates = 2) %>%
+  set_expt_batches(fact = "clinic")
+second_info <- pca_information(
+    second, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+second_info$anova_neglogp_heatmap
+
+third <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch = "svaseq", surrogates = 3) %>%
+  set_expt_batches(fact = "clinic")
+third_info <- pca_information(
+    third, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+third_info$anova_neglogp_heatmap
+
+fourth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                         filter = TRUE, batch = "svaseq", surrogates = 4) %>%
+  set_expt_batches(fact = "clinic")
+fourth_info <- pca_information(
+    fourth, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+fourth_info$anova_neglogp_heatmap
+fourth_info[["pca_plots"]][["PC1_PC2"]]
+
+fifth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch = "svaseq", surrogates = 5) %>%
+  set_expt_batches(fact = "clinic")
+fifth_info <- pca_information(
+    fifth, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+fifth_info$anova_neglogp_heatmap
+fifth_info[["pca_plots"]][["PC1_PC12"]]
+
+sixth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch="svaseq", surrogates = 6) %>%
+  set_expt_batches(fact = "clinic")
+sixth_info <- pca_information(
+    sixth, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+sixth_info$anova_neglogp_heatmap
+
+seventh <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                          filter = TRUE, batch = "svaseq", surrogates = 7) %>%
+  set_expt_batches(fact = "clinic")
+seventh_info <- pca_information(
+    seventh, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+seventh_info$anova_neglogp_heatmap
+
+eighth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch = "svaseq", surrogates = 8)
+eighth_info <- pca_information(
+    eighth, plot_pcas = TRUE, num_components = 30,
+    expt_factors = c("visitnumber", "typeofcells",
+                     "finaloutcome", "clinic"))
+eighth_info$anova_neglogp_heatmap
+```
+
+# Variance Partition
+
+```{r}
+## Mostly running twice to make sure that reordering the factors does not affect the end result.
+tc_varpart <- simple_varpart(
+  tc_clinical, factors = c("visitnumber", "typeofcells",
+                           "finaloutcome", "clinic", "sex", "etnia"))
+tc_varpart
+
+tc_varpartv2 <- simple_varpart(
+  tc_clinical, factors = c("donor", "visitnumber", "typeofcells",
+                           "finaloutcome"))
+tc_varpartv2
+```
+
+## Visualize: Repeat plots using only the Tumaco samples
+
+The following should be a nearly copy/pasted version of the above, but
+limited to the Tumaco samples.
+
+### All samples
+
+```{r}
+t_clinical_nobiop_norm <- normalize_expt(t_clinical_nobiop, filter = TRUE, norm = "quant",
+                                         convert = "cpm", transform = "log2")
+t_clinical_nobiop_pca <- plot_pca(t_clinical_nobiop_norm, plot_labels = FALSE)
+t_clinical_nobiop_pca$plot
+
+t_clinical_nobiop_nb <- normalize_expt(t_clinical_nobiop, filter = TRUE, convert = "cpm",
+                                       transform = "log2", batch = "svaseq")
+t_clinical_nobiop_nb_pca <- plot_pca(t_clinical_nobiop_nb, plot_labels = FALSE)
+t_clinical_nobiop_nb_pca$plot
+```
+
+Now we have a new, smaller set of primary samples which are
+categorized by cell type.
+
+### Visualize: Biopsy samples only Tumaco
+
+The biopsy samples remain basically impenetrable. I think it
+would be particularly nice if we could judge cure/fail from a visit 1
+biopsy.
+
+```{r}
+t_biopsies_norm <- normalize_expt(t_biopsies, transform = "log2", convert = "cpm",
+  norm = "quant", filter = TRUE)
+
+t_biopsies_pca <- plot_pca(t_biopsies_norm,
+  plot_labels = FALSE)
+t_biopsies_pca
+
+t_biopsies_nb <- normalize_expt(t_biopsies, transform = "log2", convert = "cpm",
+                                batch = "svaseq", filter = TRUE)
+t_biopsies_nb_pca <- plot_pca(t_biopsies_nb, plot_labels = FALSE)
+t_biopsies_nb_pca$plot
+```
+
+### Visualize: Monocyte samples only Tumaco
+
+In contrast, I suspect that we can get meaningful data from the
+other cell types.  The monocyte samples are still a bit messy.
+
+### Figure 4A: Monocytes
+
+```{r}
+t_monocyte_norm <- normalize_expt(t_monocytes, transform = "log2", convert = "cpm",
+                                  norm = "quant", filter = TRUE)
+
+t_monocyte_pca <- plot_pca(t_monocyte_norm,
+  plot_labels = FALSE)
+t_monocyte_pca
+
+t_monocyte_nb <- normalize_expt(t_monocytes, transform = "log2", convert = "cpm",
+                                batch = "svaseq", filter = TRUE)
+t_monocyte_nb_pca <- plot_pca(t_monocyte_nb, plot_labels = FALSE)
+pp(file = "figures/figure4A_monocytes.svg")
+t_monocyte_nb_pca$plot
+dev.off()
+t_monocyte_nb_pca$plot
+```
+
+### Visualize: Neutrophil samples only Tumaco
+
+### Figure 4A: Neutrophils
+
+```{r}
+t_neutrophil_norm <- normalize_expt(t_neutrophils, transform = "log2", convert = "cpm",
+                                    norm = "quant", filter = TRUE)
+
+t_neutrophil_pca <- plot_pca(t_neutrophil_norm,
+                             plot_labels = FALSE)
+t_neutrophil_pca
+
+t_neutrophil_nb <- normalize_expt(t_neutrophils, transform = "log2", convert = "cpm",
+                                     batch = "svaseq", filter = TRUE)
+t_neutrophil_nb_pca <- plot_pca(t_neutrophil_nb, plot_labels = FALSE)
+pp(file = "figures/figure4A_neutrophils.svg")
+t_neutrophil_nb_pca$plot
+dev.off()
+t_neutrophil_nb_pca$plot
+```
+
+### Visualize: Eosinophil samples only Tumaco
+
+### Figure 4A: Eosinophils
+
+```{r}
+t_eosinophil_norm <- normalize_expt(t_eosinophils, transform = "log2", convert = "cpm",
+                                    norm = "quant", filter = TRUE)
+
+t_eosinophil_pca <- plot_pca(t_eosinophil_norm,
+                             plot_labels = FALSE)
+t_eosinophil_pca
+
+t_eosinophil_nb <- normalize_expt(t_eosinophils, transform = "log2", convert = "cpm",
+                                  batch = "svaseq", filter = TRUE)
+t_eosinophil_nb_pca <- plot_pca(t_eosinophil_nb, plot_labels = FALSE)
+pp(file = "figures/figure4A_eosinophils.svg")
+t_eosinophil_nb_pca$plot
+dev.off()
+t_eosinophil_nb_pca$plot
+```
+
+### Visualize: Look at Cell types C/F by visit
+
+#### Monocytes, Visit 1
+
+```{r}
+t_monocyte_v1 <- subset_expt(t_monocytes, subset = "visitnumber=='1'")
+t_monocyte_v1_norm <- normalize_expt(t_monocyte_v1, norm = "quant", convert = "cpm",
+                                     transform = "log2", filter = TRUE)
+t_monocyte_v1_pca <- plot_pca(t_monocyte_v1_norm, plot_labels = FALSE)
+t_monocyte_v1_pca
+
+t_monocyte_v1_nb <- normalize_expt(t_monocyte_v1, convert = "cpm",
+                                   transform = "log2", filter = TRUE, batch = "svaseq")
+t_monocyte_v1_nb_pca <- plot_pca(t_monocyte_v1_nb, plot_labels = FALSE)
+t_monocyte_v1_nb_pca$plot
+```
+
+#### Monocytes Visit 2
+
+```{r}
+t_monocyte_v2 <- subset_expt(t_monocytes, subset = "visitnumber=='2'")
+t_monocyte_v2_norm <- normalize_expt(t_monocyte_v2, norm = "quant", convert = "cpm",
+                                     transform = "log2", filter = TRUE)
+t_monocyte_v2_pca <- plot_pca(t_monocyte_v2_norm, plot_labels = FALSE)
+t_monocyte_v2_pca$plot
+
+t_monocyte_v2_nb <- normalize_expt(t_monocyte_v2, convert = "cpm",
+                                   transform = "log2", filter = TRUE, batch = "svaseq")
+t_monocyte_v2_nb_pca <- plot_pca(t_monocyte_v2_nb, plot_labels = FALSE)
+t_monocyte_v2_nb_pca$plot
+```
+
+#### Monocytes Visit 3
+
+```{r}
+t_monocyte_v3 <- subset_expt(t_monocytes, subset = "visitnumber=='3'")
+t_monocyte_v3_norm <- normalize_expt(t_monocyte_v3, norm = "quant", convert = "cpm",
+                                   transform = "log2", filter = TRUE)
+t_monocyte_v3_pca <- plot_pca(t_monocyte_v3_norm, plot_labels = FALSE)
+t_monocyte_v3_pca
+
+t_monocyte_v3_nb <- normalize_expt(t_monocyte_v3, convert = "cpm",
+                                   transform = "log2", filter = TRUE, batch = "svaseq")
+t_monocyte_v3_nb_pca <- plot_pca(t_monocyte_v3_nb, plot_labels = FALSE)
+t_monocyte_v3_nb_pca$plot
+```
+
+#### Neutrophils, Visit 1
+
+```{r} neutrophils_by_visit_v1}
+t_neutrophil_v1 <- subset_expt(t_neutrophils, subset = "visitnumber=='1'")
+t_neutrophil_v1_norm <- normalize_expt(t_neutrophil_v1, norm = "quant", convert = "cpm",
+                                   transform = "log2", filter = TRUE)
+t_neutrophil_v1_pca <- plot_pca(t_neutrophil_v1_norm, plot_labels = FALSE)
+t_neutrophil_v1_pca$plot
+
+t_neutrophil_v1_nb <- normalize_expt(t_neutrophil_v1, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "ruvg")
+t_neutrophil_v1_nb_pca <- plot_pca(t_neutrophil_v1_nb, plot_labels = FALSE)
+t_neutrophil_v1_nb_pca$plot
+```
+
+#### Neutrophils Visit 2
+
+```{r}
+t_neutrophil_v2 <- subset_expt(t_neutrophils, subset = "visitnumber=='2'")
+t_neutrophil_v2_norm <- normalize_expt(t_neutrophil_v2, norm = "quant", convert = "cpm",
+                                       transform = "log2", filter = TRUE)
+t_neutrophil_v2_pca <- plot_pca(t_neutrophil_v2_norm, plot_labels = FALSE)
+t_neutrophil_v2_pca
+
+t_neutrophil_v2_nb <- normalize_expt(t_neutrophil_v2, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "svaseq")
+t_neutrophil_v2_nb_pca <- plot_pca(t_neutrophil_v2_nb, plot_labels = FALSE)
+t_neutrophil_v2_nb_pca$plot
+```
+
+#### Neutrophils Visit 3
+
+```{r}
+t_neutrophil_v3 <- subset_expt(t_neutrophils, subset = "visitnumber=='3'")
+t_neutrophil_v3_norm <- normalize_expt(t_neutrophil_v3, norm = "quant", convert = "cpm",
+                                       transform = "log3", filter = TRUE)
+t_neutrophil_v3_pca <- plot_pca(t_neutrophil_v3_norm, plot_labels = FALSE)
+t_neutrophil_v3_pca
+
+t_neutrophil_v3_nb <- normalize_expt(t_neutrophil_v3, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "svaseq")
+t_neutrophil_v3_nb_pca <- plot_pca(t_neutrophil_v3_nb, plot_labels = FALSE)
+t_neutrophil_v3_nb_pca$plot
+```
+
+#### Eosinophils, Visit 1
+
+```{r}
+t_eosinophil_v1 <- subset_expt(t_eosinophils, subset = "visitnumber=='1'")
+t_eosinophil_v1_norm <- normalize_expt(t_eosinophil_v1, norm = "quant", convert = "cpm",
+                                   transform = "log2", filter = TRUE)
+t_eosinophil_v1_pca <- plot_pca(t_eosinophil_v1_norm, plot_labels = FALSE)
+t_eosinophil_v1_pca
+
+t_eosinophil_v1_nb <- normalize_expt(t_eosinophil_v1, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "svaseq")
+t_eosinophil_v1_nb_pca <- plot_pca(t_eosinophil_v1_nb, plot_labels = FALSE)
+t_eosinophil_v1_nb_pca$plot
+```
+
+#### Eosinophils Visit 2
+
+```{r}
+t_eosinophil_v2 <- subset_expt(t_eosinophils, subset = "visitnumber=='2'")
+t_eosinophil_v2_norm <- normalize_expt(t_eosinophil_v2, norm = "quant", convert = "cpm",
+                                       transform = "log2", filter = TRUE)
+t_eosinophil_v2_pca <- plot_pca(t_eosinophil_v2_norm, plot_labels = FALSE)
+t_eosinophil_v2_pca
+
+t_eosinophil_v2_nb <- normalize_expt(t_eosinophil_v2, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "svaseq")
+t_eosinophil_v2_nb_pca <- plot_pca(t_eosinophil_v2_nb, plot_labels = FALSE)
+t_eosinophil_v2_nb_pca$plot
+```
+
+#### Eosinophils Visit 3
+
+```{r}
+t_eosinophil_v3 <- subset_expt(t_eosinophils, subset = "visitnumber=='3'")
+t_eosinophil_v3_norm <- normalize_expt(t_eosinophil_v3, norm = "quant", convert = "cpm",
+                                       transform = "log3", filter = TRUE)
+t_eosinophil_v3_pca <- plot_pca(t_eosinophil_v3_norm, plot_labels = FALSE)
+t_eosinophil_v3_pca
+
+t_eosinophil_v3_nb <- normalize_expt(t_eosinophil_v3, convert = "cpm",
+                                     transform = "log2", filter = TRUE, batch = "svaseq")
+t_eosinophil_v3_nb_pca <- plot_pca(t_eosinophil_v3_nb, plot_labels = FALSE)
+t_eosinophil_v3_nb_pca$plot
+```
+
+## Recategorize: Concatenate cure/fail and cell type
+
+In the following block the experimental condition was reset to the
+concatenation of clinical outcome and type of cells.  There are an
+insufficient number of biopsy samples for them to be useful in this
+visualization, so they are ignored.
+
+```{r}
+desired_levels <- c("cure_biopsy", "failure_biopsy", "cure_eosinophils", "failure_eosinophils",
+                    "cure_monocytes", "failure_monocytes", "cure_neutrophils", "failure_neutrophils")
+new_fact <- factor(
+    paste0(pData(t_clinical)[["condition"]], "_",
+           pData(t_clinical)[["batch"]]),
+    levels = desired_levels)
+
+t_clinical_concat <- set_expt_conditions(t_clinical, fact = new_fact) %>%
+  set_expt_batches(fact = "visitnumber") %>%
+  set_expt_colors(color_choices[["cf_type"]]) %>%
+  subset_expt(subset="typeofcells!='biopsy'")
+
+## Try to ensure that the levels stay in the order I want
+meta <- pData(t_clinical_concat) %>%
+  mutate(condition = fct_relevel(condition, desired_levels))
+pData(t_clinical_concat) <- meta
+```
+
+### Visualize: Look at Tumaco-only samples by cell type and cure/fail
+
+The following block is pretty wild to my eyes; it seems to me that the
+variances introduced by cell type basically wipe out the apparent
+differences between cure/fail that we were able to see previously.
+
+I suppose this is not entirely surprising, but when we had the Cali
+samples it at least looked like there were differences which were
+explicitly between cure/fail across cell types.  I suppose this means
+those differences were actually coming from the unbalanced state of
+the two clinics from the perspective of clinic.
+
+```{r}
+t_clinical_concat_norm <- normalize_expt(t_clinical_concat, transform = "log2", convert = "cpm",
+                                       norm = "quant", filter = TRUE)
+t_clinical_concat_norm_pca <- plot_pca(t_clinical_concat_norm)
+t_clinical_concat_norm_pca$plot
+
+t_clinical_concat_nb <- normalize_expt(t_clinical_concat, transform = "log2", convert = "cpm",
+                                       batch = "svaseq", filter = TRUE)
+t_clinical_concat_nb_pca <- plot_pca(t_clinical_concat_nb)
+t_clinical_concat_nb_pca$plot
+```
+
+# Visit comparisons
+
+Let us shift the focus from cell type and/or Cure/Fail to the visit
+number.  As you are likely aware, the three visits are significantly
+spread apart according to the clinical treatment of each patient.
+Thus we will now separate the samples by visit in order to more easily
+see what new patterns emerge.
+
+## Recategorize: All visits together
+
+Now let us shift the view slightly to focus on changes observed over time.
+
+```{r}
+tc_visit_expt <- set_expt_conditions(tc_clinical, fact = "visitnumber") %>%
+  set_expt_batches(fact = "finaloutcome") %>%
+  set_expt_colors(color_choices[["visit2"]])
+tc_visit_norm <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2", convert = "cpm",
+                                batch = "svaseq")
+plot_pca(tc_visit_norm)$plot
+
+t_visit_expt <- set_expt_conditions(t_clinical, fact = "visitnumber") %>%
+  set_expt_batches(fact = "finaloutcome") %>%
+  subset_expt(subset="typeofcells!='biopsy'")
+
+t_visit_norm <- normalize_expt(t_visit_expt, transform = "log2", convert = "cpm",
+                             norm = "quant", filter = TRUE)
+plot_pca(t_visit_norm)$plot
+t_visit_nb <- normalize_expt(t_visit_expt, transform = "log2", convert = "cpm",
+                             filter = TRUE, batch = "svaseq")
+t_visit_nb_pca <- plot_pca(t_visit_nb)
+t_visit_nb_pca$plot
+```
+
+When looking at all cell types, it is quite difficult to see
+differences among the three visits.
+
+## Visualize: C/F for only the visit 1 samples
+
+Wen we had both Cali and Tumaco samples, it looked like there was
+variance suggesting differences between cure and fail for visit 1.  I
+think the following block will suggest pretty strongly that this was
+not true.
+
+```{r}
+tv1_norm <- normalize_expt(tv1_samples, transform = "log2", convert = "cpm",
+                          norm = "quant", filter = TRUE)
+plot_pca(tv1_norm)$plot
+tv1_nb <- normalize_expt(tv1_samples, transform = "log2", convert = "cpm",
+                        filter = TRUE, batch = "svaseq")
+plot_pca(tv1_nb, plot_labels = FALSE)$plot
+```
+
+## Visualize: C/F for only the visit 2 samples
+
+```{r}
+tv2_clinical <- subset_expt(tv2_samples, subset = "visitnumber=='2'") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  set_expt_batches(fact = "typeofcells")
+
+tv2_nb <- normalize_expt(tv2_clinical, transform = "log2", convert = "cpm", norm = "quant",
+                        filter = TRUE, batch = "svaseq")
+plot_pca(tv2_nb, plot_labels = FALSE)$plot
+```
+
+## Visualize: C/F for only the visit 3 samples
+
+```{r}
+tv3_clinical <- subset_expt(tv3_samples, subset = "visitnumber=='3'") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  set_expt_batches(fact = "typeofcells")
+
+tv3_nb <- normalize_expt(tv3_clinical, transform = "log2", convert = "cpm", norm = "quant",
+                        filter = TRUE, batch = "svaseq")
+plot_pca(tv3_nb, plot_labels = FALSE)$plot
+```
+
+### Visualize: Comparing 3 visits by cell type
+
+Separate the samples by cell type in order to more easily observe
+patterns with respect to visit and clinical outcome.
+
+#### Monocytes across visits
+
+```{r}
+t_visitcf_monocyte_norm <- normalize_expt(t_visitcf_monocyte, norm = "quant", convert = "cpm",
+                                transform = "log2", filter = TRUE)
+t_visitcf_monocyte_pca <- plot_pca(t_visitcf_monocyte_norm, plot_labels = FALSE)
+t_visitcf_monocyte_pca$plot
+
+t_visitcf_monocyte_disheat <- plot_disheat(t_visitcf_monocyte_norm)
+t_visitcf_monocyte_disheat$plot
+
+t_visitcf_monocyte_nb <- normalize_expt(t_visitcf_monocyte, convert = "cpm",
+                                    transform = "log2", filter = TRUE, batch = "svaseq")
+t_visitcf_monocyte_nb_pca <- plot_pca(t_visitcf_monocyte_nb, plot_labels = FALSE)
+t_visitcf_monocyte_nb_pca$plot
+```
+
+#### Eosinophils across visits
+
+```{r}
+t_visitcf_eosinophil_norm <- normalize_expt(t_visitcf_eosinophil, norm = "quant", convert = "cpm",
+                                transform = "log2", filter = TRUE)
+t_visitcf_eosinophil_pca <- plot_pca(t_visitcf_eosinophil_norm, plot_labels = FALSE)
+t_visitcf_eosinophil_pca$plot
+
+t_visitcf_eosinophil_disheat <- plot_disheat(t_visitcf_eosinophil_norm)
+t_visitcf_eosinophil_disheat$plot
+
+t_visitcf_eosinophil_nb <- normalize_expt(t_visitcf_eosinophil, convert = "cpm",
+                                    transform = "log2", filter = TRUE, batch = "svaseq")
+t_visitcf_eosinophil_nb_pca <- plot_pca(t_visitcf_eosinophil_nb, plot_labels = FALSE)
+t_visitcf_eosinophil_nb_pca$plot
+```
+
+#### Neutrophils across visits
+
+```{r}
+t_visitcf_neutrophil_norm <- normalize_expt(t_visitcf_neutrophil, norm = "quant", convert = "cpm",
+                                transform = "log2", filter = TRUE)
+t_visitcf_neutrophil_pca <- plot_pca(t_visitcf_neutrophil_norm, plot_labels = FALSE)
+t_visitcf_neutrophil_pca$plot
+
+t_visitcf_neutrophil_disheat <- plot_disheat(t_visitcf_neutrophil_norm)
+t_visitcf_neutrophil_disheat$plot
+
+t_visitcf_neutrophil_nb <- normalize_expt(t_visitcf_neutrophil, convert = "cpm",
+                                          transform = "log2", filter = TRUE, batch = "svaseq")
+t_visitcf_neutrophil_nb_pca <- plot_pca(t_visitcf_neutrophil_nb, plot_labels = FALSE)
+t_visitcf_neutrophil_nb_pca$plot
+```
+
+#### Celltypes by visit, C/F batch: Monocytes
+
+```{r}
+t_visitcf_monocyte <- set_expt_conditions(t_visitcf_monocyte, prefix = "v",
+                                          fact = "visitnumber") %>%
+  set_expt_batches("finaloutcome") %>%
+  set_expt_colors(color_choices[["visit"]])
+t_visitcf_monocyte_norm <- normalize_expt(t_visitcf_monocyte,
+                                          transform = "log2", convert = "cpm",
+                                          norm = "quant", filter = TRUE)
+t_visitcf_monocyte_pca <- plot_pca(t_visitcf_monocyte_norm, plot_labels = FALSE)
+t_visitcf_monocyte_pca$plot
+```
+
+#### Celltypes by visit, C/F batch: Eosinophils
+
+```{r}
+t_visitcf_eosinophil <- set_expt_conditions(t_visitcf_eosinophil, prefix = "v",
+                                            fact = "visitnumber") %>%
+  set_expt_batches("finaloutcome") %>%
+  set_expt_colors(color_choices[["visit"]])
+t_visitcf_eosinophil_norm <- normalize_expt(t_visitcf_eosinophil,
+                                          transform = "log2", convert = "cpm",
+                                          norm = "quant", filter = TRUE)
+t_visitcf_eosinophil_pca <- plot_pca(t_visitcf_eosinophil_norm, plot_labels = FALSE)
+t_visitcf_eosinophil_pca$plot
+```
+
+#### Celltypes by visit, C/F batch: Neutrophils
+
+```{r}
+t_visitcf_neutrophil <- set_expt_conditions(t_visitcf_neutrophil, prefix = "v",
+                                            fact = "visitnumber") %>%
+  set_expt_batches("finaloutcome") %>%
+  set_expt_colors(color_choices[["visit"]])
+t_visitcf_neutrophil_norm <- normalize_expt(t_visitcf_neutrophil,
+                                          transform = "log2", convert = "cpm",
+                                          norm = "quant", filter = TRUE)
+t_visitcf_neutrophil_pca <- plot_pca(t_visitcf_neutrophil_norm, plot_labels = FALSE)
+t_visitcf_neutrophil_pca$plot
+```
+
+# Persistence
+
+### Take a look
+
+See if there are any patterns which look usable.
+
+```{r}
+## All
+t_persistence_norm <- normalize_expt(t_persistence, transform = "log2", convert = "cpm",
+                                   norm = "quant", filter = TRUE)
+plot_pca(t_persistence_norm)$plot
+t_persistence_nb <- normalize_expt(t_persistence, transform = "log2", convert = "cpm",
+                                 batch = "svaseq", filter = TRUE)
+plot_pca(t_persistence_nb)$plot
+
+## Biopsies
+##persistence_biopsy_norm <- normalize_expt(persistence_biopsy, transform = "log2", convert = "cpm",
+##                                   norm = "quant", filter = TRUE)
+##plot_pca(persistence_biopsy_norm)$plot
+## Insufficient data
+
+## Monocytes
+t_persistence_monocyte_norm <- normalize_expt(t_persistence_monocyte, transform = "log2", convert = "cpm",
+                                              norm = "quant", filter = TRUE)
+plot_pca(t_persistence_monocyte_norm)$plot
+t_persistence_monocyte_nb <- normalize_expt(t_persistence_monocyte, transform = "log2", convert = "cpm",
+                                 batch = "svaseq", filter = TRUE)
+plot_pca(t_persistence_monocyte_nb)$plot
+
+## Neutrophils
+t_persistence_neutrophil_norm <- normalize_expt(t_persistence_neutrophil, transform = "log2", convert = "cpm",
+                                                norm = "quant", filter = TRUE)
+plot_pca(t_persistence_neutrophil_norm)$plot
+t_persistence_neutrophil_nb <- normalize_expt(t_persistence_neutrophil, transform = "log2", convert = "cpm",
+                                 batch = "svaseq", filter = TRUE)
+plot_pca(t_persistence_neutrophil_nb)$plot
+
+## Eosinophils
+t_persistence_eosinophil_norm <- normalize_expt(t_persistence_eosinophil, transform = "log2", convert = "cpm",
+                                   norm = "quant", filter = TRUE)
+plot_pca(t_persistence_eosinophil_norm)$plot
+t_persistence_eosinophil_nb <- normalize_expt(t_persistence_eosinophil, transform = "log2", convert = "cpm",
+                                 batch = "svaseq", filter = TRUE)
+plot_pca(t_persistence_eosinophil_nb)$plot
+```
+
+# Classify me!
+
+I wrote out all the z2.2 and z2.3 specific variants to a couple files,
+I want to see if I can classify a human sample as infected with 2.2 or
+2.3.
+
+```{r, eval=FALSE}
+z22 <- read.csv("csv/variants_22.csv")
+z23 <- read.csv("csv/variants_23.csv")
+cure <- read.csv("csv/cure_variants.txt")
+fail <- read.csv("csv/fail_variants.txt")
+z22_vec <- gsub(pattern="\\-", replacement="_", x=z22[["x"]])
+z23_vec <- gsub(pattern="\\-", replacement="_", x=z23[["x"]])
+cure_vec <- gsub(pattern="\\-", replacement="_", x=cure)
+fail_vec <- gsub(pattern="\\-", replacement="_", x=fail)
+
+classify_zymo <- function(sample) {
+  arbitrary_tags <- sm(readr::read_tsv(sample))
+  arbitrary_ids <- arbitrary_tags[["position"]]
+  message("Length: ", length(arbitrary_ids), ", z22: ",
+          sum(arbitrary_ids %in% z22_vec) / (length(z22_vec)), " z23: ",
+          sum(arbitrary_ids %in% z23_vec) / (length(z23_vec)))
+}
+
+arbitrary_sample <- "preprocessing/TMRC30156/outputs/40freebayes_lpanamensis_v36/all_tags.txt.xz"
+classify_zymo(arbitrary_sample)
+```
+
+```{r, eval=FALSE}
+##if (!isTRUE(get0("skip_load"))) {
+##  pander::pander(sessionInfo())
+##  message("This is hpgltools commit: ", get_git_commit())
+##  message("Saving to ", savefile)
+##  tmp <- sm(saveme(filename=savefile))
+##}
+```
+
+# Visualizing composite scores
+
+First lets get the gene IDs and colors for these plots.
+
+```{r}
+library(viridis)
+wanted_genes <- c("IFI44L", "IFI27", "PRR5", "PRR5-ARHGAP8", "RHCE",
+                  "FBXO39", "RSAD2", "SMTNL1", "USP18", "AFAP1")
+wanted_idx <- fData(tc_valid)[["hgnc_symbol"]] %in% wanted_genes
+wanted_ids <- rownames(fData(tc_valid))[wanted_idx]
+```
+
+## All samples, all visits
+
+```{r}
+few <-  subset_genes(tc_valid, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_clinical, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## All samples, visit 1
+
+```{r}
+few <- subset_genes(tc_clinical, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <- subset_genes(t_clinical, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Eosinophils, all times
+
+```{r}
+few <-  subset_genes(tc_eosinophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_eosinophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Eosinophils, v1
+
+```{r}
+few <-  subset_genes(tc_eosinophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_eosinophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Monocytes all
+
+```{r}
+few <-  subset_genes(tc_monocytes, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_monocytes, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Monocytes v1
+
+```{r}
+few <-  subset_genes(tc_monocytes, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_monocytes, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Neutrophils all
+
+```{r}
+few <-  subset_genes(tc_neutrophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_neutrophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+## Neutrophils v1
+
+```{r}
+few <-  subset_genes(tc_neutrophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+
+few <-  subset_genes(t_neutrophils, ids = wanted_ids, method = "keep") %>%
+  set_expt_conditions(fact = "finaloutcome") %>%
+  subset_expt(subset = "visitnumber=='1'") %>%
+  normalize_expt(transform = "log2", convert = "rpkm",
+                 column = "mean_cds_len")
+shp <- plot_sample_heatmap(few, heatmap_colors = viridis, row_label = wanted_genes)
+shp
+```
+
+# An external dataset
+
+Let us look at a moderately similar Biopsy dataset of braziliensis
+infected individuals.  First, lets do a quick plot of their data, our
+biopsies, then combine them.
+
+## Load the data
+
+```{r}
+## Load the scott-only and the scott+tmrc3 data
+load(glue("rda/tmrc3_external_cf-v{ver}.rda"))
+load(glue("rda/tmrc3_external-v{ver}.rda"))
+```
+
+## Visualize the two datasets individually
+
+```{r}
+our_biopsies <- set_expt_conditions(t_biopsies, "finaloutcome") %>%
+  set_expt_colors(color_choices[["cf"]])
+our_biopsies_norm <- normalize_expt(our_biopsies, filter = TRUE, transform = "log2",
+                                    convert = "cpm", batch = "svaseq")
+plot_pca(our_biopsies_norm)$plot
+
+scott_biopsies_norm <- normalize_expt(external_cf, filter = TRUE, transform = "log2",
+                                      convert = "cpm", batch = "svaseq")
+plot_pca(scott_biopsies_norm)$plot
+```
+
+## Visualize them together
+
+```{r}
+both_norm <- normalize_expt(tmrc3_external, filter = TRUE, transform = "log2",
+                             convert = "cpm", norm = "quant")
+plot_pca(both_norm)$plot
+both_nb <- normalize_expt(tmrc3_external, filter = TRUE, transform = "log2",
+                           convert = "cpm", batch = "svaseq")
+plot_pca(both_nb)$plot
+
+external_species <- set_expt_conditions(tmrc3_external, fact = "ParasiteSpecies") %>%
+  subset_expt(subset = "ParasiteSpecies!='notapplicable'") %>%
+  set_expt_batches(fact = "lab")
+
+tt <- normalize_expt(external_species, transform = "log2", convert = "cpm", norm = "quant",
+                     filter = TRUE)
+plot_pca(tt)
+ttt <- normalize_expt(external_species, transform = "log2", convert = "cpm", batch = "svaseq",
+                     filter = TRUE)
+plot_pca(ttt)
+```
+
+```{r, eval=FALSE}
+tmp <- loadme(filename=savefile)
+```
