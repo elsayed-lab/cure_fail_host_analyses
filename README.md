@@ -1,6 +1,8 @@
 # Introduction
 
-Define, create, and run the analyses used in the paper: ""
+Define, create, and run the analyses used in the paper:
+
+"Innate Biosignature of Treatment Failure in Human Cutaneous Leishmaniasis."
 
 This repository contains everything one should need to create a
 singularity container which is able to run all of the various R
