@@ -1,0 +1,5 @@
+glpk
+imagemagick
+mpfr
+netcdf4
+pandoc
