@@ -1,5 +1,5 @@
 ---
-title: "TMRC3 202308: Visualizing Analyses"
+title: "TMRC3 `r Sys.getenv('VERSION')`: Visualizing Analyses"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
 output:
@@ -9,7 +9,7 @@ output:
   fig_caption: true
   fig_height: 7
   fig_width: 7
-  highlight: default
+  highlight: zenburn
   keep_md: false
   mode: selfcontained
   number_sections: true
@@ -21,10 +21,19 @@ output:
    smooth_scroll: false
 ---
 
-<style>
-  body .main-container {
-    max-width: 1600px;
-  }
+<style type="text/css">
+body .main-container {
+  max-width: 1600px;
+}
+body, td {
+  font-size: 16px;
+}
+code.r{
+  font-size: 16px;
+}
+pre {
+  font-size: 16px
+}
 </style>
 
 ```{r, include=FALSE}
@@ -32,16 +41,14 @@ library(hpgltools)
 library(dplyr)
 library(forcats)
 library(glue)
-knitr::opts_knit$set(
-  progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
+library(EuPathDB)
+
+knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
 knitr::opts_chunk$set(
   error = TRUE, fig.width = 8, fig.height = 8, fig.retina = 2,
-  fig.pos = "t", fig.align = "center", dpi = if (knitr::is_latex_output()) 72 else 300,
   out.width = "100%", dev = "png",
   dev.args = list(png = list(type = "cairo-png")))
-old_options <- options(digits = 4,
-                       stringsAsFactors = FALSE,
-                       knitr.duplicate.label = "allow")
+old_options <- options(digits = 4, stringsAsFactors = FALSE, knitr.duplicate.label = "allow")
 ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
 previous_file <- ""
@@ -78,6 +85,10 @@ the person to be defined as failure.
 
 2. Note from Maria Adelaida: Some chemokines are suggestive of
    Eosinophil recruitment.
+
+3. Most of the documents in this tree have another version with a
+   suffix 'commentary' in which I have significantly more text
+   describing my thinking at the various steps.
 
 ## Goals
 
@@ -672,7 +683,7 @@ tc_clinic_type_nb <- normalize_expt(tc_clinic_type, transform = "log2", convert 
                                     batch = "svaseq", filter = TRUE)
 tc_clinic_type_nb_pca <- plot_pca(tc_clinic_type_nb)
 tc_clinic_type_nb_pca$plot
-pp(file = "figure/figure3a_all_samples.svg")
+pp(file = "figures/figure3a_all_samples.svg")
 tc_clinic_type_nb_pca$plot
 dev.off()
 ```
@@ -1279,7 +1290,7 @@ t_visitcf_neutrophil_pca$plot
 
 See if there are any patterns which look usable.
 
-```{r}
+```{r, eval=FALSE}
 ## All
 t_persistence_norm <- normalize_expt(t_persistence, transform = "log2", convert = "cpm",
                                    norm = "quant", filter = TRUE)
@@ -1345,15 +1356,6 @@ classify_zymo <- function(sample) {
 
 arbitrary_sample <- "preprocessing/TMRC30156/outputs/40freebayes_lpanamensis_v36/all_tags.txt.xz"
 classify_zymo(arbitrary_sample)
-```
-
-```{r, eval=FALSE}
-##if (!isTRUE(get0("skip_load"))) {
-##  pander::pander(sessionInfo())
-##  message("This is hpgltools commit: ", get_git_commit())
-##  message("Saving to ", savefile)
-##  tmp <- sm(saveme(filename=savefile))
-##}
 ```
 
 # Visualizing composite scores
@@ -1569,6 +1571,14 @@ ttt <- normalize_expt(external_species, transform = "log2", convert = "cpm", bat
                      filter = TRUE)
 plot_pca(ttt)
 ```
+
+```{r}
+pander::pander(sessionInfo())
+message("This is hpgltools commit: ", get_git_commit())
+message("Saving to ", savefile)
+# tmp <- sm(saveme(filename = savefile))
+```
+
 
 ```{r, eval=FALSE}
 tmp <- loadme(filename=savefile)

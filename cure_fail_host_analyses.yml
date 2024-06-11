@@ -24,52 +24,30 @@ exec cd /data/hpgltools && make test
 ## written to /.singularity.d/env/90-environment.sh
 ## As of this writing, it appears VERSION is not propagated to the %post block, therefore
 ## the definition is repeated there.
-umask 002
-export VERSION=202404
-export CLICOLOR=true
-export CONDA_DEFAULT_ENV=hpgltools
-export CONDA_PREFIX=/sw/local/conda/${VERSION}/envs/hpgltools
-export CONDA_SHLVL=1
-export DEBIAN_FRONTEND=noninteractive
-export EDITOR=vi
-export FTP_PASSIVE=1
-export GREP_COLORS=32
-export GREP_OPTIONS=--color=auto
-export HACKPAGER=more
-export LC_ALL="C"
-export LESSOPEN="| /usr/bin/lesspipe %s"
-export LESS="-RX"
-export MAKEFLAGS="-j $(grep -c ^processor /proc/cpuinfo)"
-export MAMBA_EXE=/usr/bin/micromamba
-export MAMBA_ROOT_PREFIX="/sw/local/conda/${VERSION}"
-export PAGER=less
-export PATH=/sw/local/conda/${VERSION}/envs/hpgltools/bin:/sw/local/conda/${VERSION}/condabin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-export R_USER_CACHE_DIR="/tmp/my_r_cache"
-export R_MAX_NUM_DLLS=512
-export DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:03differential_expression_tumaco.Rmd:04lrt_gsva.Rmd:05wgcna.Rmd:06classifier_highvar.Rmd:06classifier.Rmd:06classifier_tumaco.Rmd"
+. /usr/local/etc/bashrc
 
 
 ## Instead of copying files within the setup section, one should use the files block, I think because
 ## this is not run with elevated permissions.
 %files
 local/etc/bashrc /usr/local/etc/bashrc
+local/etc/deb_packages.txt /usr/local/etc/deb_packages.txt
+local/etc/conda_packages.txt /usr/local/etc/conda_packages.txt
+local/bin/bootstrap.R /usr/local/bin/bootstrap.R
+local/bin/bootstrap.sh /usr/local/bin/bootstrap.sh
 local/bin/runscript.sh /usr/local/bin/runscript.sh
-local/bin/setup_debian.sh /usr/local/bin/setup_debian.sh
-local/bin/setup_hpgltools.sh /usr/local/bin/setup_hpgltools.sh
-local/bin/setup_local.sh /usr/local/bin/setup_local.sh
-local/dotemacs.d/init.el /.emacs.d/init.el
-local/dotemacs.d/config.el /.emacs.d/config.el
-local/dotemacs.d/custom.el /.emacs.d/custom.el
-local/dotemacs.d/keybindings.el /.emacs.d/keybindings.el
-local/dotemacs.d/functions.el /.emacs.d/functions.el
-local/dotemacs.d/zw-company.el /.emacs.d/zw-company.el
-local/etc/template /sw/modules/template
 data/Makefile /data/Makefile
+data/renv.lock /data/renv.lock
+data/renv/activate.R /data/renv/activate.R
+data/renv/settings.json /data/renv/settings.json
+data/renv/.gitignore /data/renv/.gitignore
+local/etc/template /sw/modules/template
 data/preprocessing/pruned_counts_host.tar /data/preprocessing/pruned_counts_host.tar
 data/preprocessing/pruned_counts_parasite.tar /data/preprocessing/pruned_counts_parasite.tar
 data/preprocessing/scott_counts.tar /data/preprocessing/scott_counts.tar
 data/sample_sheets/scott_sra_samples.xlsx /data/sample_sheets/scott_sra_samples.xlsx
 data/sample_sheets/tmrc3_demographics.xlsx /data/sample_sheets/tmrc3_demographics.xlsx
+data/sample_sheets/tmrc3_demographicsv2.xlsx /data/sample_sheets/tmrc3_demographicsv2.xlsx
 data/sample_sheets/tmrc3_samples_pruned.xlsx /data/sample_sheets/tmrc3_samples_pruned.xlsx
 data/sample_sheets/identified_parasite_species.xlsx /data/sample_sheets/identified_parasite_species.xlsx
 data/sample_sheets/tmrc3_samples.xlsx /data/sample_sheets/tmrc3_samples.xlsx
@@ -89,6 +67,7 @@ data/06classifier_commentary.Rmd /data/06classifier_commentary.Rmd
 data/06classifier_highvar.Rmd /data/06classifier_highvar.Rmd
 data/06classifier.Rmd /data/06classifier.Rmd
 data/06classifier_tumaco.Rmd /data/06classifier_tumaco.Rmd
+data/07varcor_regression.Rmd /data/07varcor_regression.Rmd
 
 %help
 String printed when "singularity help image.simg" is run.
@@ -96,17 +75,13 @@ String printed when "singularity help image.simg" is run.
 
 %labels
 Maintainer Ashton Trey Belew <abelew@umd.edu>
-Version v202309
 
 
 %post
-export VERSION=202404
-export BIOC_VERSION=3.18
-export R_BIOC_VERSION=${BIOC_VERSION}
-echo "Beginning installation with version: ${VERSION}."
-/usr/local/bin/setup_debian.sh
-/usr/local/bin/setup_hpgltools.sh
-/usr/local/bin/setup_local.sh
+echo "export CONTAINER_VERSION=202405" >> /versions.txt
+echo "export BIOC_VERSION=3.18" >> /versions.txt
+echo "export R_VERSION=4.3.3" >> /versions.txt
+/usr/local/bin/bootstrap.sh
 
 
 %runscript
@@ -126,7 +101,6 @@ mkdir -p ${SINGULARITY_ROOTFS}/data/sample_sheets
 mkdir -p ${SINGULARITY_ROOTFS}/output
 mkdir -p ${SINGULARITY_ROOTFS}/sw/local/conda
 mkdir -p ${SINGULARITY_ROOTFS}/sw/modules
-tar=$(cd data && tar cavf Rmd.tar *.Rmd)
 
 
 %test

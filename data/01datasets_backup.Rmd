@@ -55,7 +55,7 @@ previous_file <- ""
 rundate <- format(Sys.Date(), format = "%Y%m%d")
 
 ##tmp <- try(sm(loadme(filename=gsub(pattern="\\.Rmd", replace="\\.rda\\.xz", x=previous_file))))
-rmd_file <- "01datasets.Rmd"
+rmd_file <- "tmrc3_datasets.Rmd"
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 data_structures <- c()
 ```
@@ -174,10 +174,6 @@ the gene/version and transcript/version.  If these do not match
 exactly, many genes will be dropped by tximport without any output to
 signify something is wrong.
 
-Note to self, I made a fun function which grabs the ids from salmon
-results.  In addition I found that tximport can optionally ignore
-them.
-
 ```{r}
 ## The tx_gene_map is used for tximport and salmon quantifications.
 hs_annot[["transcript"]] <- paste0(rownames(hs_annot), ".",
@@ -194,7 +190,7 @@ lengths for goseq.  The other methods either have built-in databases
 of human data (gProfiler) or support orgDB data (org.Hs.eg.db)
 (clusterProfiler/topGO/gostats).
 
-```{r}
+```{r, eval=FALSE}
 hs_go <- try(load_biomart_go()[["go"]])
 if ("try-error" %in% class(hs_go)) {
   hs_go <- NULL
@@ -518,8 +514,6 @@ order to make it easier for folks to work with WGCNA and other tools
 (STRING).
 
 ```{r}
-dir.create("cpm/3_cali_and_tumaco", recursive = TRUE)
-dir.create("rpkm")
 cpm_data <- normalize_expt(hs_expt, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
@@ -884,6 +878,35 @@ save(list = "tcv3_neutrophils", file = glue("rda/tmrc3_tcv3_neutrophils-v{ver}.r
 data_structures <- c(data_structures, "tcv3_neutrophils")
 ```
 
+# Summarize: Tabulate sample numbers
+
+Here is an outline of the samples in their current state:
+
+** Note ** : Something changed ~ 20240510 which is causing this to
+fail, commenting it out for the moment.
+
+<! ---
+
+* By type: `r ncol(exprs(tc_valid))`, Cure: `r sum(pData(tc_valid)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tc_valid)[["finaloutcome"]] == "failure")`
+    *  Biopsy: `r all_types[["biopsy"]]`, Cure: `r sum(pData(tc_biopsies)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tc_biopsies)[["finaloutcome"]] == "failure")`
+        * All biopsy samples are visit 1.
+    *  Eosinophils: `r all_types[["eosinophils"]]`, Cure: `r sum(pData(tc_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tc_eosinophils)[["finaloutcome"]] == "failure")`
+        * V1 Eosinophils: `r nrow(pData(tcv1_eosinophils))`, Cure: `r sum(pData(tcv1_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv1_eosinophils)[["finaloutcome"]] == "failure")`
+        * V2 Eosinophils: `r nrow(pData(tcv2_eosinophils))`, Cure: `r sum(pData(tcv2_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv2_eosinophils)[["finaloutcome"]] == "failure")`
+        * V3 Eosinophils: `r nrow(pData(tcv3_eosinophils))`, Cure: `r sum(pData(tcv3_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv3_eosinophils)[["finaloutcome"]] == "failure")`
+    *  Monocytes: `r all_types[["monocytes"]]`, Cure: `r sum(pData(tc_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tc_monocytes)[["finaloutcome"]] == "failure")`
+        * V1 Monocytes: `r nrow(pData(tcv1_monocytes))`, Cure: `r sum(pData(tcv1_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv1_monocytes)[["finaloutcome"]] == "failure")`
+        * V2 Monocytes: `r nrow(pData(tcv2_monocytes))`, Cure: `r sum(pData(tcv2_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv2_monocytes)[["finaloutcome"]] == "failure")`
+        * V3 Monocytes: `r nrow(pData(tcv3_monocytes))`, Cure: `r sum(pData(tcv3_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv3_monocytes)[["finaloutcome"]] == "failure")`
+    *  Neutrophils: `r all_types[["neutrophils"]]`, Cure: `r sum(pData(tc_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tc_neutrophils)[["finaloutcome"]] == "failure")`
+        * V1 Neutrophils: `r nrow(pData(tcv1_neutrophils))`, Cure: `r sum(pData(tcv1_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv1_neutrophils)[["finaloutcome"]] == "failure")`
+        * V2 Neutrophils: `r nrow(pData(tcv2_neutrophils))`, Cure: `r sum(pData(tcv2_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv2_neutrophils)[["finaloutcome"]] == "failure")`
+* V3 Neutrophils: `r nrow(pData(tcv3_neutrophils))`, Cure: `r sum(pData(tcv3_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tcv3_neutrophils)[["finaloutcome"]] == "failure")`
+
+--->
+
+
+
 ## By sex
 
 ```{r}
@@ -947,7 +970,6 @@ written_expt <- write_expt(
 ## Without biopsies
 
 ```{r}
-dir.create("cpm/4_tumaco", recursive = TRUE)
 t_clinical_nobiop <- subset_expt(t_clinical, subset = "typeofcells!='biopsy'")
 save(list = "t_clinical_nobiop", file = glue("rda/tmrc3_t_clinical_nobiop-v{ver}.rda"))
 data_structures <- c(data_structures, "t_clinical_nobiop")
@@ -1451,7 +1473,6 @@ to perform comparisons among the Cali samples.  The following blocks
 therefore separate them out in a similar fashion.
 
 ```{r}
-dir.create("cpm/4_cali", recursive = TRUE)
 c_clinical <- tc_clinical %>%
   subset_expt(subset = "clinic=='Cali'")
 save(list = "c_clinical", file = glue("rda/tmrc3_c_clinical-v{ver}.rda"))
@@ -2077,6 +2098,25 @@ data_structures <- c(data_structures, "c_visitcf_neutrophil")
 
 Here is an outline of the samples in their current state:
 
+## Tumaco
+
+* By type: `r ncol(exprs(t_clinical))`, Cure: `r sum(pData(t_clinical)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(t_clinical)[["finaloutcome"]] == "failure")`
+    *  Biopsy: `r all_types[["biopsy"]]`, Cure: `r sum(pData(t_biopsies)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(t_biopsies)[["finaloutcome"]] == "failure")`
+        * All biopsy samples are visit 1.
+    *  Eosinophils: `r all_types[["eosinophils"]]`, Cure: `r sum(pData(t_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(t_eosinophils)[["finaloutcome"]] == "failure")`
+        * V1 Eosinophils: `r nrow(pData(tv1_eosinophils))`, Cure: `r sum(pData(tv1_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv1_eosinophils)[["finaloutcome"]] == "failure")`
+        * V2 Eosinophils: `r nrow(pData(tv2_eosinophils))`, Cure: `r sum(pData(tv2_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv2_eosinophils)[["finaloutcome"]] == "failure")`
+        * V3 Eosinophils: `r nrow(pData(tv3_eosinophils))`, Cure: `r sum(pData(tv3_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv3_eosinophils)[["finaloutcome"]] == "failure")`
+    *  Monocytes: `r all_types[["monocytes"]]`, Cure: `r sum(pData(t_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(t_monocytes)[["finaloutcome"]] == "failure")`
+        * V1 Monocytes: `r nrow(pData(tv1_monocytes))`, Cure: `r sum(pData(tv1_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv1_monocytes)[["finaloutcome"]] == "failure")`
+        * V2 Monocytes: `r nrow(pData(tv2_monocytes))`, Cure: `r sum(pData(tv2_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv2_monocytes)[["finaloutcome"]] == "failure")`
+        * V3 Monocytes: `r nrow(pData(tv3_monocytes))`, Cure: `r sum(pData(tv3_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv3_monocytes)[["finaloutcome"]] == "failure")`
+    *  Neutrophils: `r all_types[["neutrophils"]]`, Cure: `r sum(pData(t_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(t_neutrophils)[["finaloutcome"]] == "failure")`
+        * V1 Neutrophils: `r nrow(pData(tv1_neutrophils))`, Cure: `r sum(pData(tv1_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv1_neutrophils)[["finaloutcome"]] == "failure")`
+        * V2 Neutrophils: `r nrow(pData(tv2_neutrophils))`, Cure: `r sum(pData(tv2_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv2_neutrophils)[["finaloutcome"]] == "failure")`
+        * V3 Neutrophils: `r nrow(pData(tv3_neutrophils))`, Cure: `r sum(pData(tv3_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(tv3_neutrophils)[["finaloutcome"]] == "failure")`
+
+
 ```{r}
 ncol(exprs(t_clinical))
 sum(pData(t_clinical)[["finaloutcome"]] == "cure")
@@ -2136,6 +2176,22 @@ sum(pData(tv3_neutrophils)[["finaloutcome"]] == "failure")
 ```
 
 ## Cali
+
+* By type: `r ncol(exprs(c_clinical))`, Cure: `r sum(pData(c_clinical)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(c_clinical)[["finaloutcome"]] == "failure")`
+    *  Biopsy: `r all_types[["biopsy"]]`, Cure: `r sum(pData(c_biopsies)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(c_biopsies)[["finaloutcome"]] == "failure")`
+        * All biopsy samples are visit 1.
+    *  Eosinophils: `r all_types[["eosinophils"]]`, Cure: `r sum(pData(c_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(c_eosinophils)[["finaloutcome"]] == "failure")`
+        * V1 Eosinophils: `r nrow(pData(cv1_eosinophils))`, Cure: `r sum(pData(cv1_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv1_eosinophils)[["finaloutcome"]] == "failure")`
+        * V2 Eosinophils: `r nrow(pData(cv2_eosinophils))`, Cure: `r sum(pData(cv2_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv2_eosinophils)[["finaloutcome"]] == "failure")`
+        * V3 Eosinophils: `r nrow(pData(cv3_eosinophils))`, Cure: `r sum(pData(cv3_eosinophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv3_eosinophils)[["finaloutcome"]] == "failure")`
+    *  Monocytes: `r all_types[["monocytes"]]`, Cure: `r sum(pData(c_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(c_monocytes)[["finaloutcome"]] == "failure")`
+        * V1 Monocytes: `r nrow(pData(cv1_monocytes))`, Cure: `r sum(pData(cv1_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv1_monocytes)[["finaloutcome"]] == "failure")`
+        * V2 Monocytes: `r nrow(pData(cv2_monocytes))`, Cure: `r sum(pData(cv2_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv2_monocytes)[["finaloutcome"]] == "failure")`
+        * V3 Monocytes: `r nrow(pData(cv3_monocytes))`, Cure: `r sum(pData(cv3_monocytes)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv3_monocytes)[["finaloutcome"]] == "failure")`
+    *  Neutrophils: `r all_types[["neutrophils"]]`, Cure: `r sum(pData(c_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(c_neutrophils)[["finaloutcome"]] == "failure")`
+        * V1 Neutrophils: `r nrow(pData(cv1_neutrophils))`, Cure: `r sum(pData(cv1_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv1_neutrophils)[["finaloutcome"]] == "failure")`
+        * V2 Neutrophils: `r nrow(pData(cv2_neutrophils))`, Cure: `r sum(pData(cv2_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv2_neutrophils)[["finaloutcome"]] == "failure")`
+        * V3 Neutrophils: `r nrow(pData(cv3_neutrophils))`, Cure: `r sum(pData(cv3_neutrophils)[["finaloutcome"]] == "cure")`, Fail: `r sum(pData(cv3_neutrophils)[["finaloutcome"]] == "failure")`
 
 ```{r}
 ncol(exprs(c_clinical))
@@ -2262,20 +2318,7 @@ data_structures <- c(data_structures, "t_etnia_expt")
 # Save all data structures into one big pile
 
 ```{r}
-found_idx <- data_structures %in% ls()
-if (sum(!found_idx) > 0) {
-  not_found <- data_structures[!found_idx]
-  warning("Some datastructures were not generated: ", toString(not_found), ".")
-  data_structures <- data_structures[found_idx]
-}
 save(list = data_structures, file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
-```
-
-```{r}
-pander::pander(sessionInfo())
-message("This is hpgltools commit: ", get_git_commit())
-message("Saving to ", savefile)
-# tmp <- sm(saveme(filename = savefile))
 ```
 
 ```{r, eval=FALSE}

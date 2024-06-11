@@ -1,15 +1,30 @@
 #!/usr/bin/env bash
-# >>> mamba initialize >>>
-# !! Contents within this block are managed by 'mamba init' !!
-export MAMBA_EXE='/bin/micromamba';
-export MAMBA_ROOT_PREFIX="/sw/local/conda/${VERSION}";
-__mamba_setup="$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX" 2>/dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__mamba_setup"
-else
-    alias micromamba="$MAMBA_EXE"  # Fallback on help from mamba activate
-fi
-unset __mamba_setup
-# <<< mamba initialize <<<
+umask 002
 
-micromamba activate hpgltools
+source /versions.txt
+
+export CLICOLOR=true
+export CONDA_DEFAULT_ENV=hpgltools
+export CONDA_PREFIX=/sw/local/conda/${CONTAINER_VERSION}/envs/hpgltools
+export CONDA_SHLVL=1
+export CPUS=$(( $(cat /proc/cpuinfo | grep -c processor) - 1))
+export DEBIAN_FRONTEND=noninteractive
+export EDITOR=vi
+export FTP_PASSIVE=1
+export GREP_COLORS=32
+export GREP_OPTIONS=--color=auto
+export HACKPAGER=more
+export HOME=/data
+export LC_ALL="C"
+export LESSOPEN="| /usr/bin/lesspipe %s"
+export LESS="-RX"
+export MAKEFLAGS="-j $(grep -c ^processor /proc/cpuinfo)"
+export MAMBA_EXE=/usr/bin/micromamba
+export MAMBA_ROOT_PREFIX="/sw/local/conda/${CONTAINER_VERSION}"
+export PAGER=less
+export PATH=/sw/local/conda/${CONTAINER_VERSION}/envs/hpgltools/bin:/sw/local/conda/${CONTAINER_VERSION}/condabin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export R_LIBS_USER=/data/renv/library/R-4.3/x86_64-conda-linux-gnu
+export R_LIBS_SITE="${R_LIBS_USER}"
+export R_MAX_NUM_DLLS=512
+export R_USER_CACHE_DIR="/tmp/my_r_cache"
+export DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:03differential_expression_tumaco.Rmd:04lrt_gsva.Rmd:05wgcna.Rmd:06classifier_highvar.Rmd:06classifier.Rmd:06classifier_tumaco.Rmd:07varcor_regression.Rmd"

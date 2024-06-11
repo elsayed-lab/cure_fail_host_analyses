@@ -1,8 +1,6 @@
 # Introduction
 
-Define, create, and run the analyses used in the paper:
-
-"Innate Biosignature of Treatment Failure in Human Cutaneous Leishmaniasis."
+Define, create, and run the analyses used in the paper: ""
 
 This repository contains everything one should need to create a
 singularity container which is able to run all of the various R
@@ -16,7 +14,7 @@ the container and play with the data.
 Grab a copy of the repository:
 
 ```{bash, eval=FALSE}
-git pull https://github.com/elsayed-lab/cure_fail_host_analyses.git 
+git pull something something
 ```
 
 The resulting directory should contain a few subdirectories of note:
@@ -45,7 +43,7 @@ file and build a Debian stable container with a R environment suitable
 for running all of the analyses in Rmd/.
 
 ```{bash, eval=FALSE}
-make 
+make tmrc3_analyses.sif
 ## Really, this just runs:
 sudo -E singularity build tmrc3_analyses.sif tmrc3_analyses.yml
 ```
@@ -57,7 +55,22 @@ One of the neat things about singularity is the fact that one may just
 '%runscript' section.  That runscript should use knitr to render a
 html copy of all the Rmd/ files and put a copy of the html outputs
 along with all of the various excel/rda/image outputs into the current
-working directory of the host system.
+working directory of the host system.  In order for this to work, it
+makes one bit assumption: the environment variable
+SINGULARITY_BINDPATH _must_ include '.:/output'.
+
+One may of course change $PWD to wherever one wishes, as well as add
+more comma-separated paths.  With that in mind, the following should
+run for a few hours and print a whole lot of text to the screen, then
+dump a lot of files to ${PWD}/{current_date}_outputs.
+
+*NOTE: 202309* I did not think through the implications of the
+immutable nature of the singularity container.  I knew that the images
+are RO, but for some reason I still assumed I can write to it in the
+run script.  As a result, until I more fully understand singularity,
+the following will not work.  I think the key thing I must do is
+create a sandbox image, but until I figure it out, it will likely
+easiest to use an overlay.
 
 ```{bash, eval=FALSE}
 export SINGULARITY_BINDPATH=".:/output"
