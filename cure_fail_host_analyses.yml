@@ -30,10 +30,13 @@ exec cd /data/hpgltools && make test
 ## Instead of copying files within the setup section, one should use the files block, I think because
 ## this is not run with elevated permissions.
 %files
+local/org.Lpanamensis.MHOMCOL81L13.v68.eg.db_2024.09.tar.gz /usr/local/org.Lpanamensis.MHOMCOL81L13.v68.eg.db_2024.09.tar.gz
 local/etc/bashrc /usr/local/etc/bashrc
 local/etc/deb_packages.txt /usr/local/etc/deb_packages.txt
 local/etc/conda_packages.txt /usr/local/etc/conda_packages.txt
 local/bin/bootstrap.R /usr/local/bin/bootstrap.R
+local/bin/bootstrap_renv.R /usr/local/bin/bootstrap_renv.R
+local/bin/bootstrap_norenv.R /usr/local/bin/bootstrap_norenv.R
 local/bin/bootstrap.sh /usr/local/bin/bootstrap.sh
 local/bin/runscript.sh /usr/local/bin/runscript.sh
 data/Makefile /data/Makefile
@@ -55,19 +58,15 @@ data/Makefile /data/Makefile
 data/00preprocessing.Rmd /data/00preprocessing.Rmd
 data/01datasets.Rmd /data/01datasets.Rmd
 data/02visualization.Rmd /data/02visualization.Rmd
-data/03differential_expression_both_commentary.Rmd /data/03differential_expression_both_commentary.Rmd
 data/03differential_expression_both.Rmd /data/03differential_expression_both.Rmd
-data/03differential_expression_tumaco_commentary.Rmd /data/03differential_expression_tumaco_commentary.Rmd
-data/03differential_expression_tumaco.Rmd /data/03differential_expression_tumaco.Rmd
-data/04lrt_gsva_commentary.Rmd /data/04lrt_gsva_commentary.Rmd
-data/04lrt_gsva.Rmd /data/04lrt_gsva.Rmd
-data/05wgcna_commentary.Rmd /data/05wgcna_commentary.Rmd
-data/05wgcna.Rmd /data/05wgcna.Rmd
-data/06classifier_commentary.Rmd /data/06classifier_commentary.Rmd
-data/06classifier_highvar.Rmd /data/06classifier_highvar.Rmd
-data/06classifier.Rmd /data/06classifier.Rmd
-data/06classifier_tumaco.Rmd /data/06classifier_tumaco.Rmd
-data/07varcor_regression.Rmd /data/07varcor_regression.Rmd
+data/04differential_expression_tumaco.Rmd /data/04differential_expression_tumaco.Rmd
+data/05enrichment.Rmd /data/05enrichment.Rmd
+data/06lrt_gsva.Rmd /data/06lrt_gsva.Rmd
+data/07wgcna.Rmd /data/07wgcna.Rmd
+data/08classifier_highvar.Rmd /data/08classifier_highvar.Rmd
+data/09varcor_regression.Rmd /data/09varcor_regression.Rmd
+data/atb.bib /data/atb.bib
+
 
 %help
 String printed when "singularity help image.simg" is run.
@@ -78,14 +77,14 @@ Maintainer Ashton Trey Belew <abelew@umd.edu>
 
 
 %post
-echo "export CONTAINER_VERSION=202405" >> /versions.txt
-echo "export BIOC_VERSION=3.18" >> /versions.txt
-echo "export R_VERSION=4.3.3" >> /versions.txt
+echo "export CONTAINER_VERSION=202408" > /versions.txt
+echo "export BIOC_VERSION=3.19" >> /versions.txt
+echo "export R_VERSION=4.4.1" >> /versions.txt
 /usr/local/bin/bootstrap.sh
 
 
 %runscript
-/usr/local/bin/runscript.sh $*
+/usr/bin/time /usr/local/bin/runscript.sh $*
 
 
 ## The setup block will be used to prepare material which I cannot acquire
@@ -96,10 +95,10 @@ mkdir -p ${SINGULARITY_ROOTFS}/usr/local/bin
 mkdir -p ${SINGULARITY_ROOTFS}/usr/local/etc
 mkdir -p ${SINGULARITY_ROOTFS}/.emacs.d
 mkdir -p ${SINGULARITY_ROOTFS}/data/preprocessing
-mkdir -p ${SINGULARITY_ROOTFS}/data/R
 mkdir -p ${SINGULARITY_ROOTFS}/data/sample_sheets
 mkdir -p ${SINGULARITY_ROOTFS}/output
 mkdir -p ${SINGULARITY_ROOTFS}/sw/local/conda
+mkdir -p ${SINGULARITY_ROOTFS}/sw/local/R/renv_cache
 mkdir -p ${SINGULARITY_ROOTFS}/sw/modules
 
 

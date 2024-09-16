@@ -137,6 +137,10 @@ years, during which time we changed sequencing platforms and
 computational infrastructure, the actual prefixes/suffixes of the
 various scripts and outputs are not as consistent as I would like.
 
+Also, the samples we did in the midst of pandemic are sometimes quite
+a mess, some of them have far far too much data, others have far too
+little.
+
 ### Trimming raw reads
 
 With the above caveat in mind, I am copy/pasting the little shell fragments I
