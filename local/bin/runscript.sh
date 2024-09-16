@@ -5,7 +5,7 @@ set -o pipefail
 start=$(pwd)
 source /usr/local/etc/bashrc
 export VERSION=$(date +%Y%m)
-
+pwd
 
 function usage() {
     echo "This script by default will render every file in the list:"
@@ -50,13 +50,13 @@ function dump() {
     echo "This includes all the R packages, any built genomes, all the raw data, _everything_."
     echo "You have 5 seconds to hit control-C before it starts."
     sleep 5
-    rsync -av /data/ --exclude='renv' --exclude='build' --exclude='hpgltools' --exclude='hpgldata' .
+    rsync -av /data/ --exclude='R' --exclude='renv' --exclude='build' --exclude='hpgltools' --exclude='hpgldata' .
 }
 
 
 function render_inputs() {
     echo "This is using versions: container: ${CONTAINER_VERSION}, bioconductor: ${BIOC_VERSION},"
-    echo "hpgltools: ${HPGL_VERSION}, and run: ${VERSION}."
+    echo "hpgltools: ${HPGL_VERSION}, and script: ${VERSION}."
     echo "This script should render the Rmd files in the list:"
     echo "${inputs}."
     mkdir -p excel figures tmp cpm rpkm
@@ -134,3 +134,5 @@ render_inputs
 cd "${start}" || exit
 rm current_output
 ln -s "${OUTPUT_DIR}" current_output
+minutes=$(( ${SECONDS} / 60 ))
+echo "This set of analyses completed in ${minutes} minutes."

@@ -16,7 +16,10 @@ libmpfr-dev
 libnetcdf-dev
 libtiff-dev
 libxft-dev
+pandoc
+pandoc-citeproc-preamble
 rsync
+time
 vim
 wget
 xauth

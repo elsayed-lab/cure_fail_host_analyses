@@ -3,6 +3,7 @@ umask 002
 
 source /versions.txt
 
+#export BIOMART_CACHE="/tmp/my_r_cache" ## Needed for biomaRt?
 export CLICOLOR=true
 export CONDA_DEFAULT_ENV=hpgltools
 export CONDA_PREFIX=/sw/local/conda/${CONTAINER_VERSION}/envs/hpgltools
@@ -14,7 +15,6 @@ export FTP_PASSIVE=1
 export GREP_COLORS=32
 export GREP_OPTIONS=--color=auto
 export HACKPAGER=more
-export HOME=/data
 export LC_ALL="C"
 export LESSOPEN="| /usr/bin/lesspipe %s"
 export LESS="-RX"
@@ -23,8 +23,11 @@ export MAMBA_EXE=/usr/bin/micromamba
 export MAMBA_ROOT_PREFIX="/sw/local/conda/${CONTAINER_VERSION}"
 export PAGER=less
 export PATH=/sw/local/conda/${CONTAINER_VERSION}/envs/hpgltools/bin:/sw/local/conda/${CONTAINER_VERSION}/condabin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-export R_LIBS_USER=/data/renv/library/R-4.3/x86_64-conda-linux-gnu
+export RENV_PATHS_CACHE=/sw/local/R/renv_cache
+## I am not sure if these R_LIBS are appropriate with renv.
+export R_LIBS_USER=/data/R
 export R_LIBS_SITE="${R_LIBS_USER}"
+#export R_USER_CACHE_DIR="/tmp/my_r_cache"  ## Needed for biomaRt
 export R_MAX_NUM_DLLS=512
-export R_USER_CACHE_DIR="/tmp/my_r_cache"
-export DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:03differential_expression_tumaco.Rmd:04lrt_gsva.Rmd:05wgcna.Rmd:06classifier_highvar.Rmd:06classifier.Rmd:06classifier_tumaco.Rmd:07varcor_regression.Rmd"
+##export R_USER_CACHE_DIR="/tmp/my_r_cache"
+export DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:04differential_expression_tumaco.Rmd:05enrichment.Rmd:06lrt_gsva.Rmd:07wgcna.Rmd:08classifier_highvar.Rmd:09varcor_regression.Rmd"

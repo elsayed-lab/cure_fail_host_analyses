@@ -13,14 +13,15 @@ github_pkgs <- c(
 )
 local_pkgs <- c("hpgltools", "EuPathDB")
 random_helpers <- c(
-  "BSgenome", "CMplot", "devtools", "flashClust", "ggbio", "glmnet", "irr",
+  "BSgenome", "CMplot", "devtools", "flashClust", "forestplot", "ggbio", "glmnet", "irr",
   "lares", "patchwork", "ranger", "renv", "rpart", "rpart.plot", "tidyverse", "xgboost")
 specific_args <- list(
   "preprocessCore" = c(preprocessCore = "--disable-threading"))
 specific_versions <- list(
-  "Matrix" = "1.6-5",
+  "dbplyr" = "2.3.4",
   "MASS" = "7.3-60",
-  "dbplyr" = "2.3.4")
+  "Matrix" = "1.6-5",
+  "rjson" = "0.2.21")
 starter <- c("BiocManager", "remotes", "devtools")
 stupidly_broken <- c("clusterProfiler")
 
@@ -38,7 +39,6 @@ for (i in seq_along(specific_versions)) {
   installedp <- try(devtools::install_version(pkg, version = ver))
 }
 
-message("Iterating over Depends/Imports/Suggests.")
 for (i in local_pkgs) {
   dep_pkgs <- remotes::dev_package_deps(i, dependencies = "Depends")[["package"]]
   message("Installing Depends for ", i, ": ", toString(dep_pkgs))
@@ -59,7 +59,7 @@ for (i in github_pkgs) {
   installedp <- try(devtools::install_github(i))
 }
 
-message("Installing local packages.")
+message("Installing local packages. (hpgltools and EuPathDB)")
 for (i in local_pkgs) {
   installedp <- try(devtools::install(i))
 }
@@ -71,6 +71,23 @@ for (i in seq_along(specific_args)) {
   installedp <- try(BiocManager::install(pkg, configure.args=args,
                                          force = TRUE, update = TRUE, type = "source"))
 }
+
+#message("Iterating over the renv versions.")
+#versions <- rjson::fromJSON(file = "renv.lock")
+#wanted <- versions[[3]]
+#installed <- installed.packages()
+#num_pkgs <- length(wanted)
+#for (pkg in seq_len(num_pkgs)) {
+#  this <- installed[[pkg]]
+#  name <- names(installed)[pkg]
+#  version <- this[["Version"]]
+#  if (name %in% installed) {
+#    message(name, " is already installed.")
+#  } else {
+#    message("Installing ", name, " version ", version, ".")
+#    installedp <- try(devtools::install_version(name, version = version))
+#  }
+#}
 
 message("Installing desired eupathdb packages.")
 for (i in eupath_strings) {
