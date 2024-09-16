@@ -2,6 +2,7 @@
 title: "TMRC3 `r Sys.getenv('VERSION')`: Creating Data Structures"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
+bibliography: atb.bib
 output:
   html_document:
     code_download: true
@@ -28,7 +29,7 @@ body .main-container {
 body, td {
   font-size: 16px;
 }
-code.r{
+code.r {
   font-size: 16px;
 }
 pre {
@@ -42,6 +43,7 @@ library(dplyr)
 library(forcats)
 library(glue)
 library(EuPathDB)
+library(tidyr)
 
 knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
 knitr::opts_chunk$set(
@@ -59,6 +61,26 @@ rmd_file <- "01datasets.Rmd"
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 data_structures <- c()
 ```
+
+# TODO
+
+1.  Ensure no columns have names like 'etnia' but instead
+    'ethnicity_cat'
+2.  Decide how to handle the retirement of tritrypdb.org
+
+# Changelog
+
+* 202408: Made demographics data more available for the new regression analyses.
+* 202405: Reworked handling of the demographics data
+* 202308: Small reorganization to more closely adhere to the flow of the manuscript's text.
+* 202305: Updated default image format.
+* 202304: Added a series of stanzas printing out the Cali-only data.
+* Updated input metadata sheets
+
+# Notes
+
+* Interferon score for severity.  A few different sets are available,
+  may need to choose a specific paper, then modify it?
 
 # Introduction
 
@@ -78,7 +100,7 @@ was used as the input for all following analyses.
 ```{r}
 samplesheet <- "sample_sheets/tmrc3_samples.xlsx"
 testthat::expect_true(file.exists(samplesheet))
-demographics <- "sample_sheets/tmrc3_demographics.xlsx"
+demographics <- "sample_sheets/tmrc3_demographicsv2.xlsx"
 hslp_samplesheet <- "sample_sheets/tmrc3_samples_pruned.xlsx"
 species_identities <- "sample_sheets/identified_parasite_species.xlsx"
 ```
@@ -87,11 +109,16 @@ species_identities <- "sample_sheets/identified_parasite_species.xlsx"
 
 The primary annotation sources are:
 
-1.  Ensembl's biomart archive from 2020 for human annotations.
-2.  The TriTrypDB release 36 for parasite annotations.
+1.  Ensembl's biomart archive from 2020 for human annotations (@HomoSapiensEnsembla).
+2.  The TriTrypDB release 36 for parasite annotations (@TriTrypDBLeishmaniaPanamensis).
 
 Both provide GO data.  They also provide helpful links to other data
 sources.  For the moment, we are focusing on the human annotations.
+In the first instance, the annotations are acquired via some functions
+in hpgltools which seek to make biomaRt
+(@smedleyBioMartBiologicalQueries2009) a little more robust. In the
+second instance, the annotations are extracted from a locally
+generated orgDB/annotationDbi (@AnnotationDbi) instance.
 
 ## Gene annotations
 
@@ -112,6 +139,19 @@ hs_annot <- load_biomart_annotations(year = "2020", month = "jan")
 hs_annot <- hs_annot[["annotation"]]
 ## The next two lines make a bridge between the gff file used by hisat2
 ## and the gene IDs.
+```
+
+The following lines may be used if one wishes to use the relatively
+strict ID.version system (optionally) enforced by salmon.  It should
+be noted that newer versions of tximport have options which ignore
+this, and I also now have a function which will set the ID.version for
+the gene annotations to be the same as what was observed in the count
+tables.  Either of those strategies makes the following not necessary;
+but if you wish to be a little bit pedantic about the gene<->Tx IDs,
+then this should give you a sense of how well matched are the downloaded
+annotations and gene IDs used by salmon.
+
+```{r}
 hs_annot[["transcript"]] <- paste0(rownames(hs_annot), ".", hs_annot[["version"]])
 hs_annot <- group_mean_cds_length(hs_annot)
 hs_tx_annot <- hs_annot ## Make a copy so I don't lose transcript IDs for salmon
@@ -122,6 +162,17 @@ hs_annot <- hs_annot[!not_unique_idx, ]
 
 ### Also collect parasite annotations
 
+The following block will stop working soon.  Its purpose is to
+download the current (or a specific version) annotations from one of
+the eupathdb.org websites.  These are being retired/moved soon.  My
+version of the EuPathDB package creates installable orgdb packages; so
+I presumably will just need to include the appropriate tarballs in the
+recipe for this container.  In response to the retirement of eupathdb,
+I spun up an instance of my eupathdb package to download everything;
+hopefully it will finish before the various servers go down.  I was
+too late for schistodb, it is already offline (I am pretty sure I have
+an older copy though).
+
 Given that I recently included the parasite transcripts to the data, I
 should also spend a moment and figure out how to include the
 annotations.
@@ -131,40 +182,106 @@ annotations.  I think I will need to limit them to just the shared
 columns and drop the rest.
 
 ```{r, eval=FALSE}
-orgdb <- "org.Lpanamensis.MHOMCOL81L13.v46.eg.db"
-if (! orgdb %in% installed.packages()) {
-  entries <- EuPathDB::download_eupath_metadata(webservice = "tritrypdb")
-  entry <- EuPathDB::get_eupath_entry(species = "MHOMCOL", metadata = entries)
-  orgdb_names <- EuPathDB::make_eupath_orgdb(entry, install = TRUE)
-  orgdb <- orgdb_names[["pkgname"]]
-}
+meta <- sm(download_eupath_metadata(webservice = "tritrypdb"))
+panamensis_entry <- get_eupath_entry("MHOM", metadata = meta[["valid"]])
 
-tt <- sm(library(orgdb, character.only = TRUE))
-pan_db <- org.Lpanamensis.MHOMCOL81L13.v46.eg.db
-all_fields <- columns(pan_db)
-all_lp_annot <- load_orgdb_annotations(
-    pan_db,
+panamensis_db <- make_eupath_orgdb(panamensis_entry)
+panamensis_pkg <- panamensis_db[["pkgname"]]
+package_name <- panamensis_db[["pkgname"]]
+if (is.null(panamensis_pkg)) {
+  panamensis_pkg <- panamensis_db[["orgdb_name"]]
+  package_name <- panamensis_pkg
+}
+tt <- library(panamensis_pkg, character.only = TRUE)
+panamensis_pkg <- get0(panamensis_pkg)
+all_fields <- columns(panamensis_pkg)
+all_lp_annot <- sm(load_orgdb_annotations(
+    panamensis_pkg,
     keytype = "gid",
     fields = c("annot_gene_entrez_id", "annot_gene_name",
-               "annot_strand", "annot_gene_location_text", "annot_chromosome",
-               "annot_cds_length", "annot_gene_type",
-               "annot_gene_product"))$genes
-all_lp_annot[["end"]] <- ""
+               "annot_strand", "annot_chromosome", "annot_cds_length",
+               "annot_gene_location_text", "annot_gene_product")))$genes
+```
+
+Ok, I added the orgdb tarball and an entry to install it to my
+bootstrap for this container.  So let us load the annotations for our
+Leishmanial strain of interest!
+
+```{r}
+panamensis_pkg <- "org.Lpanamensis.MHOMCOL81L13.v68.eg.db"
+tt <- library(panamensis_pkg, character.only = TRUE)
+panamensis_pkg <- get0(panamensis_pkg)
+all_fields <- columns(panamensis_pkg)
+all_lp_annot <- sm(load_orgdb_annotations(
+    panamensis_pkg,
+    keytype = "gid",
+    fields = c("annot_gene_entrez_id", "annot_gene_name",
+               "annot_strand", "annot_chromosome", "annot_cds_length",
+               "annot_gene_location_text", "annot_gene_product")))$genes
+```
+
+The following was added to support the possibility of making a single
+expressionset using the mappings against a genome of concatenated hg38
+and lpanamensis sequence.  In order to do that, one must have an
+annotation set with consistent columns across all genes from both
+species.
+
+I am not sure if I copied those count tables to the container (I
+suspect I did not), but I will leave the code here as an example of
+how one might make a concatenated expressionset/summarizedexperiment.
+
+```{r}
+all_lp_annot[["end"]] <- gsub(x = all_lp_annot[["annot_gene_location_text"]],
+                              pattern = "^.*\\.\\.", replacement = "")
+all_lp_annot[["end"]] <- gsub(x = all_lp_annot[["end"]],
+                              pattern = "\\(.*$", replacement = "")
+all_lp_annot[["end"]] <- gsub(x = all_lp_annot[["end"]],
+                              pattern = "\\,", replacement = "")
+all_lp_annot[["start"]] <- gsub(x = all_lp_annot[["annot_gene_location_text"]],
+                                pattern = "^.*:", replacement = "")
+all_lp_annot[["start"]] <- gsub(x = all_lp_annot[["start"]],
+                                pattern = "\\.\\..*$", replacement = "")
+all_lp_annot[["start"]] <- gsub(x = all_lp_annot[["start"]],
+                                pattern = "\\,", replacement = "")
 all_lp_annot[["mean_cds_len"]] <- all_lp_annot[["annot_cds_length"]]
 all_lp_annot[["version"]] <- 1
 all_lp_annot[["transcript_version"]] <- 1
 all_lp_annot[["hgnc_symbol"]] <- ""
+all_lp_annot[["uniprot_gn_symbol"]] <- ""
 all_lp_annot[["transcript"]] <- all_lp_annot[["gid"]]
 all_lp_annot[["ensembl_transcript_id"]] <- all_lp_annot[["gid"]]
 
-wanted_columns <- c("gid", "ensembl_transcript_id", "version",
-                    "transcript_version", "hgnc_symbol", "annot_gene_product",
-                    "annot_gene_type", "annot_cds_length", "annot_chromosome", "annot_strand",
-                    "annot_gene_location_text", "end", "transcript", "mean_cds_len")
+colnames(hs_tx_annot)
+wanted_columns <- c("gid", "ensembl_transcript_id", "version", "transcript_version", "annot_gene_product",
+                    "annot_gene_type", "annot_cds_length", "annot_chromosome", "annot_strand", "start",
+                    "end", "hgnc_symbol", "uniprot_gn_symbol", "transcript", "mean_cds_len")
 all_lp_annot <- all_lp_annot[, wanted_columns]
 colnames(all_lp_annot) <- colnames(hs_tx_annot)
 
 hslp_annot <- rbind(hs_tx_annot, all_lp_annot)
+```
+
+Finally, dump the current gene ontology data from the
+EuPathDB-generated orgdb instance.  This may be used by
+goseq/topgo/gostats/etc...
+
+Just as a lark, grab orthologs across the EuPathDB as well in the
+following block.
+
+One might reasonably ask why in the heck the gene ID column was
+changed to 'ensembl_gene_id', this is to make it easier (possible) to
+merge these annotations with the ensembl human annotations, if one
+chooses to combine the two genomes and examine them together.
+
+```{r}
+lp_go <- load_orgdb_go(package_name)
+lp_go <- lp_go[, c("GID", "GO")]
+lp_lengths <- all_lp_annot[, c("ensembl_gene_id", "mean_cds_len")]
+colnames(lp_lengths)  <- c("gid", "length")
+all_lp_annot[["description"]] <- tolower(all_lp_annot[["description"]])
+
+orthos <- extract_eupath_orthologs(db = panamensis_pkg)
+data_structures <- c(data_structures, "lp_lengths", "lp_go", "all_lp_annot", "meta")
 ```
 
 ### Set up gene->transcript mappings
@@ -219,30 +336,39 @@ Similarly, the character vector 'sanitize_columns' is the list of
 metadata columns over which I will iterate and sanitize the data,
 removing any spurious spaces, capitalization, etc.
 
-## create_expt
+## Create Expressionset
 
 The primary function used is 'create_expt()', which is responsible for
 combining the metadata (from the first block of code), the gene
 annotations (from the 2nd/3rd), and count tables (included in the
-metadata as a column of filenames) into a single expressionset.  The
-sanitize_columns variable defines the metadata columns which will be
-explicitly sanitized beyond the general checks
-performed. 'subset_genes()' is responsible for including _only_ the
-protein coding genes in the data; it records the amount of information
-lost to the metadata as column 'ncrna_lost'. 'sanitize_metadata()'
-will perform some sanity checks of the metadata to ensure that excel
-did not do anything untoward to the metadata. The 'set_expt_*()'
-functions modify the metadata to make it more friendly for future
-tasks, including setting some columns to factors, defining the column
-of interest vs. known surrogate(s).  Finally, 'subset_expt()' is used
-to drop samples which are known to not be of interest, like the few
-samples from people who presented as healthy in the clinic (when the
-clinicalpresentation column of the metadata is 'h').
+metadata as a column of filenames) into a single expressionset
+(@huberOrchestratingHighthroughputGenomic2015).  The sanitize_columns
+variable defines the metadata columns which will be explicitly
+sanitized beyond the general checks performed. 'subset_genes()' is
+responsible for including _only_ the protein coding genes in the data;
+it records the amount of information lost to the metadata as column
+'ncrna_lost'. 'sanitize_metadata()' will perform some sanity checks of
+the metadata to ensure that excel did not do anything untoward to the
+metadata. The 'set_expt_*()' functions modify the metadata to make it
+more friendly for future tasks, including setting some columns to
+factors, defining the column of interest vs. known surrogate(s).
+Finally, 'subset_expt()' is used to drop samples which are known to
+not be of interest, like the few samples from people who presented as
+healthy in the clinic (when the clinicalpresentation column of the
+metadata is 'h').
+
+One note if anyone actually reads this, I have a sister function which
+creates summarizedExperiments (@SummarizedExperiment) instead of
+expressionSets, and I think all of my code should move to that; but it
+just has not happened because I just haven't had a chance to finish
+writing the tests and making whatever little changes would be required
+to get them to all pass.  If my fictitious reader is interested, I
+would love help completing the switch from exprs->se.
 
 ```{r}
 sanitize_columns <- c("visitnumber", "finaloutcome", "donor",
                       "typeofcells", "clinicalpresentation", "drug",
-                      "condition", "batch")
+                      "condition", "batch", "clinic")
 hs_expt <- create_expt(samplesheet,
                        file_column = "hg38100hisatfile",
                        savefile = glue("rda/tmrc3_hs_expt_all_raw-v{ver}.rda"),
@@ -280,26 +406,92 @@ save(list = "hs_expt", file = glue("rda/tmrc3_hs_expt_all_sanitized-v{ver}.rda")
 
 ## Add the patient demographics
 
+There are some parameters provided by the clinicians which may prove
+to be of interest.  I therefore am adding the demographics here.  I
+will also run some simple checks to try to make sure that the
+clinician's metadata agrees with the sample metadata.
+
+In this first block, read the demographics and sanitize out the
+encoded NAs (999 and 888 or whatever) and add a column to join it to
+the sample sheet data.
+
+```{r}
+hs_demographics <- openxlsx::read.xlsx(demographics)
+hs_demographics[["join"]] <- tolower(hs_demographics[["Patient_ID"]])
+
+columns_with_encoded_na <- c("Adherence_Glucantime", "Adherence_Miltefosine",
+                             "Total_Ampules_Prescribed_Milt", "Prescribed_Daily_Dose_Milt",
+                             "Total_Ampules_Prescribed_Gluc", "Prescribed_Daily_Dose_Gluc",
+                             "V5_Total_Area_Ulcer", "V5_Vertical_Axis_Ulcer",
+                             "V5_Horizontal_Axis_Ulcer", "V5_Total_Area_Lesion",
+                             "V5_Vertical_Axis_Lesion", "V5_Horizontal_Axis_Lesion",
+                             "V4_Total_Area_Ulcer", "V4_Vertical_Axis_Ulcer",
+                             "V4_Horizontal_Axis_Ulcer", "V4_Total_Area_Lesion",
+                             "V4_Vertical_Axis_Lesion", "V4_Horizontal_Axis_Lesion",
+                             "V3_Total_Area_Ulcer", "V3_Vertical_Axis_Ulcer",
+                             "V3_Horizontal_Axis_Ulcer", "V3_Total_Area_Lesion",
+                             "V3_Vertical_Axis_Lesion", "V3_Horizontal_Axis_Lesion",
+                             "V2_Total_Area_Ulcer", "V2_Vertical_Axis_Ulcer",
+                             "V2_Horizontal_Axis_Ulcer", "V2_Total_Area_Lesion",
+                             "V2_Vertical_Axis_Lesion", "V2_Horizontal_Axis_Lesion",
+                             "V5_New_Lesions", "V4_New_Lesions", "V3_New_Lesions",
+                             "V2_New_Lesions")
+for (col in columns_with_encoded_na) {
+  na_idx <- hs_demographics[[col]] == 999
+  message("Column ", col, " contains ", sum(na_idx), " encoded NA values.")
+  hs_demographics[na_idx, col] <- NA
+}
+
+factor_columns <- c("Sex", "Ethnicity", "Infection_Location", "Previously_Diagnosed",
+                    "Adverse_Effects_V3", "Adverse_Effects_V4", "Therapeutic_Outcome_V3",
+                    "Therapeutic_Outcome_V4", "Therapeutic_Outcome_V5",
+                    "Therapeutic_Outcome_Final")
+for (col in factor_columns) {
+  hs_demographics[[col]] <- as.factor(hs_demographics[[col]])
+}
+
+## Extract the clinic from the patient id via a cheeseball regex.
+hs_demographics[["Clinic"]] <- gsub(x = hs_demographics[["Patient_ID"]],
+                                    pattern = "^SU(\\d){1}.*$", replacement = "\\1")
+data_structures <- c(data_structures, "hs_demographics")
+```
+
+## Get the Sample sheet data ready for joining and perform the merge
+
+In the following we add a column 'join' analagous to that added to the
+demographics, this will be used to add the various columns across each
+person's samples.  I guess I could have done this with merge(all.x =
+TRUE, all.y = TRUE)
+
 ```{r}
 hs_pd <- pData(hs_expt)
-hs_demographics <- openxlsx::read.xlsx(demographics)
-hs_demographics[["join"]] <- tolower(hs_demographics[["codigo_paciente"]])
 hs_pd[["join"]] <- hs_pd[["tubelabelorigin"]]
+
 hs_pd_demographics <- plyr::join(hs_pd, hs_demographics, by = "join")
 hs_pd_demographics[["join"]] <- NULL
 rownames(hs_pd_demographics) <- rownames(hs_pd)
 na_idx <- is.na(hs_pd_demographics)
 sum(na_idx)
 hs_pd_demographics[na_idx] <- "undefined"
+
+data_structures <- c(data_structures, "hs_pd_demographics")
+```
+
+## Add the demographics to the expressionset
+
+In addition we will create a series of composite variables from
+combinations of extant factors.
+
+```{r}
 pData(hs_expt) <- hs_pd_demographics
 
 ## Now add in the ethnicity and sex
 ## Add a combination of the ethnicity and clinic
 ## While I am at it, do sex+clinic
-table(pData(hs_expt)$eb_lc_sexo)
-table(pData(hs_expt)$eb_lc_etnia)
-table(pData(hs_expt)$clinic)
-etnia_names <- pData(hs_expt)[["eb_lc_etnia"]]
+table(pData(hs_expt)[["Sex"]])
+table(pData(hs_expt)[["Ethnicity"]])
+table(pData(hs_expt)[["clinic"]])
+etnia_names <- as.character(pData(hs_expt)[["Ethnicity"]])
 etnia_idx <- etnia_names == 1
 etnia_names[etnia_idx] <- "afrocol"
 etnia_idx <- etnia_names == 2
@@ -308,14 +500,16 @@ etnia_idx <- etnia_names == 3
 etnia_names[etnia_idx] <- "mestiza"
 pData(hs_expt)[["etnia"]] <- as.factor(etnia_names)
 table(pData(hs_expt)[["etnia"]])
+table(pData(hs_expt)[["Ethnicity"]])
 etnia_factor <- paste0(pData(hs_expt)[["clinic"]], "_",
                        etnia_names)
 pData(hs_expt)[["clinic_etnia"]] <- as.factor(etnia_factor)
 table(pData(hs_expt)[["clinic_etnia"]])
 
 pData(hs_expt)[["sex"]] <- "female"
-male_idx <- pData(hs_expt)[["eb_lc_sexo"]] == 1
+male_idx <- pData(hs_expt)[["Sex"]] == 1
 pData(hs_expt)[male_idx, "sex"] <- "male"
+pData(hs_expt)[["sex"]] <- as.factor(pData(hs_expt)[["sex"]])
 sex_factor <- paste0(pData(hs_expt)[["clinic"]], "_",
                      pData(hs_expt)[["sex"]])
 pData(hs_expt)[["clinic_sex"]] <- as.factor(sex_factor)
@@ -332,6 +526,13 @@ pData(hs_expt)[v1_samples, "visitbipart"] <- "v1"
 pData(hs_expt)[!v1_samples, "visitbipart"] <- "vother"
 table(pData(hs_expt)[["visitbipart"]])
 
+pData(hs_expt)[["cell_visit_cf"]] <- paste0(pData(hs_expt)[["typeofcells"]], "_",
+                                            pData(hs_expt)[["visitnumber"]], "_",
+                                            pData(hs_expt)[["finaloutcome"]])
+
+age_vector <- pData(hs_expt)[["Age"]]
+pData(hs_expt)[["age_cat"]] <- make_quartile_factor(age_vector)
+
 save(list = "hs_expt", file = glue("rda/tmrc3_hs_expt_all_sanitized_demographics-v{ver}.rda"))
 ```
 
@@ -341,7 +542,7 @@ Check to make sure the demographics agrees with the metadata.  I _really_ want
 this block to return NULL upon completion.
 
 ```{r}
-two_columns <- pData(hs_expt)[, c("finaloutcome", "ef_lc_estado_final_estudio")]
+two_columns <- pData(hs_expt)[, c("finaloutcome", "Therapeutic_Outcome_Final")]
 undef_idx <- two_columns[[2]] == "undefined"
 two_columns <- two_columns[!undef_idx, ]
 two_columns[["rewritten"]] <- "undef"
@@ -353,6 +554,7 @@ lost_idx <- two_columns[[2]] == 2
 two_columns[lost_idx, "rewritten"] <- "lost"
 same_idx <- two_columns[["finaloutcome"]] == two_columns[["rewritten"]]
 broken <- two_columns[!same_idx, ]
+## I very much want the following line to evaluate to 0 rows.
 broken
 ```
 
@@ -364,39 +566,40 @@ many samples we have of the primary types before filtering.
 
 ```{r}
 dim(pData(hs_expt))
-table(pData(hs_expt)$drug)
-table(pData(hs_expt)$clinic)
-table(pData(hs_expt)$finaloutcome)
-table(pData(hs_expt)$typeofcells)
-table(pData(hs_expt)$visitnumber)
-summary(as.numeric(pData(hs_expt)$eb_lc_tiempo_evolucion))
-summary(as.numeric(pData(hs_expt)$eb_lc_tto_mcto_glucan_dosis))
-summary(as.numeric(pData(hs_expt)$v3_lc_ejey_lesion_mm_1))
-summary(as.numeric(pData(hs_expt)$v3_lc_lesion_area_1))
-summary(as.numeric(pData(hs_expt)$v3_lc_ejex_ulcera_mm_1))
-table(pData(hs_expt)$eb_lc_sexo)
-table(pData(hs_expt)$eb_lc_etnia)
-summary(as.numeric(pData(hs_expt)$edad))
-table(pData(hs_expt)$eb_lc_peso)
-table(pData(hs_expt)$eb_lc_estatura)
-table(pData(hs_expt)$ef_lc_estado_final_estudio)
-table(pData(hs_expt)$finaloutcome)
+table(pData(hs_expt)[["drug"]])
+table(pData(hs_expt)[["clinic"]])
+table(pData(hs_expt)[["finaloutcome"]])
+table(pData(hs_expt)[["typeofcells"]])
+table(pData(hs_expt)[["visitnumber"]])
+summary(as.numeric(pData(hs_expt)[["Evolution_Time"]]))
+summary(as.numeric(pData(hs_expt)[["Prescribed_Daily_Dose_Gluc"]]))
+summary(as.numeric(pData(hs_expt)[["V3_Vertical_Axis_Lesion"]]))
+summary(as.numeric(pData(hs_expt)[["V3_Total_Area_Lesion"]]))
+summary(as.numeric(pData(hs_expt)[["V3_Horizontal_Axis_Lesion"]]))
+table(pData(hs_expt)[["sex"]])
+table(pData(hs_expt)[["etnia"]])
+table(pData(hs_expt)[["Ethnicity"]])
+summary(as.numeric(pData(hs_expt)[["Age"]]))
+summary(pData(hs_expt)[["Weight"]])
+summary(pData(hs_expt)[["Height"]])
+table(pData(hs_expt)[["Therapeutic_Outcome_Final"]])
+table(pData(hs_expt)[["finaloutcome"]])
 
-unique(pData(hs_expt)$codigo_paciente)
-length(unique(pData(hs_expt)$codigo_paciente))
+unique(pData(hs_expt)[["Patient_ID"]])
+length(unique(pData(hs_expt)[["Patient_ID"]]))
 ```
 
 Get the sex of the unique patients.
 
 ```{r}
-unique_people <- unique(pData(hs_expt)[["codigo_paciente"]])
+unique_people <- unique(pData(hs_expt)[["Patient_ID"]])
 unique_people
 length(unique_people)
 
 df <- pData(hs_expt)
-people <- df[["codigo_paciente"]]
+people <- df[["Patient_ID"]]
 first_indices <- order(people)[!duplicated(sort(people))]
-table(df[first_indices, "eb_lc_sexo"])
+table(df[first_indices, "sex"])
 table(df[first_indices, "finaloutcome"])
 ```
 
@@ -448,32 +651,32 @@ color_choices <- list(
       "Brazil" = "#FFC300",
       "Colombia" = "#525252"),
     "clinic" = list(
-      "Tumaco" = "#3182AA",
-      "Cali" = "#C994AA"),
+      "tumaco" = "#3182AA",
+      "cali" = "#C994AA"),
     "clinic_cf" = list(
-      "Tumaco_cure" = "#7670B3",
-      "Tumaco_failure" = "#E7298A",
-      "Cali_cure" = "#1B9E77",
-      "Cali_failure" = "#D95F02"),
+      "tumaco_cure" = "#7670B3",
+      "tumaco_failure" = "#E7298A",
+      "cali_cure" = "#1B9E77",
+      "cali_failure" = "#D95F02"),
     "ethnicity" = list(
       "afrocol" = "#4293CE",
       "indigena" = "#BDBDBD",
       "mestiza" = "#FEB24C"),
     "clinic_etnia" = list(
-      "Cali_afrocol" = "#3182BD",
-      "Cali_indigena" = "#636363",
-      "Cali_mestiza" = "#F03B20",
-      "Tumaco_afrocol" = "#9ECAE1",
-      "Tumaco_indigena" = "#BDBDBD",
-      "Tumaco_mestiza" = "#FEB24C"),
+      "cali_afrocol" = "#3182BD",
+      "cali_indigena" = "#636363",
+      "cali_mestiza" = "#F03B20",
+      "tumaco_afrocol" = "#9ECAE1",
+      "tumaco_indigena" = "#BDBDBD",
+      "tumaco_mestiza" = "#FEB24C"),
     "sex" = list(
       "female" = "#3182BD",
       "male" = "#C994C7"),
     "clinic_sex" = list(
-      "Cali_female" = "#0000CC",
-      "Tumaco_female" = "#3182BD",
-      "Cali_male" = "#E7298A",
-      "Tumaco_male" = "#C994C7"),
+      "cali_female" = "#0000CC",
+      "tumaco_female" = "#3182BD",
+      "cali_male" = "#E7298A",
+      "tumaco_male" = "#C994C7"),
     "cf_type" = list(
       "cure_biopsy" = "#D95F0E",
       "failure_biopsy" = "#FEC44F",
@@ -518,12 +721,12 @@ order to make it easier for folks to work with WGCNA and other tools
 (STRING).
 
 ```{r}
-dir.create("cpm/3_cali_and_tumaco", recursive = TRUE)
+dir.create("cpm/3_Cali_and_Tumaco", recursive = TRUE)
 dir.create("rpkm")
 cpm_data <- normalize_expt(hs_expt, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/all_samples-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/all_samples-v{ver}.xlsx"))
 
 rpkm_data <- normalize_expt(hs_expt, filter = TRUE, convert = "rpkm",
                             column = "mean_cds_len", na_to_zero = TRUE)
@@ -606,18 +809,31 @@ table(pData(tc_valid)[["clinic"]])
 table(pData(tc_valid)[["finaloutcome"]])
 table(pData(tc_valid)[["typeofcells"]])
 table(pData(tc_valid)[["visit"]])
-summary(as.numeric(pData(tc_valid)[["eb_lc_tiempo_evolucion"]]))
-summary(as.numeric(pData(tc_valid)[["eb_lc_tto_mcto_glucan_dosis"]]))
-summary(as.numeric(pData(tc_valid)[["v3_lc_ejey_lesion_mm_1"]]))
-summary(as.numeric(pData(tc_valid)[["v3_lc_lesion_area_1"]]))
-summary(as.numeric(pData(tc_valid)[["v3_lc_ejex_ulcera_mm_1"]]))
-table(pData(tc_valid)[["eb_lc_sexo"]])
-table(pData(tc_valid)[["eb_lc_etnia"]])
-summary(as.numeric(pData(tc_valid)[["edad"]]))
-table(pData(tc_valid)[["eb_lc_peso"]])
-table(pData(tc_valid)[["eb_lc_estatura"]])
+summary(as.numeric(pData(tc_valid)[["Evolution_Time"]]))
+summary(as.numeric(pData(tc_valid)[["Prescribed_Daily_Dose_Gluc"]]))
+summary(as.numeric(pData(tc_valid)[["V3_Vertical_Axis_Lesion"]]))
+summary(as.numeric(pData(tc_valid)[["V3_Total_Area_Lesion"]]))
+summary(as.numeric(pData(tc_valid)[["V3_Horizontal_Axis_Ulcer"]]))
+table(pData(tc_valid)[["sex"]])
+table(pData(tc_valid)[["etnia"]])
+summary(as.numeric(pData(tc_valid)[["Age"]]))
+summary(pData(tc_valid)[["Weight"]])
+summary(pData(tc_valid)[["Height"]])
 
-length(unique(pData(tc_valid)[["codigo_paciente"]]))
+length(unique(pData(tc_valid)[["Patient_ID"]]))
+```
+
+## Extract the demographics from the remaining samples
+
+When we perform the logistic/linear models examining variables in the
+demographics, we need to ensure that we are working with only the
+people who are included in the final dataset.
+
+```{r}
+people_remaining <- unique(pData(tc_valid)[["Patient_ID"]])
+demographics_filtered_idx <- hs_demographics[["Patient_ID"]] %in% people_remaining
+demographics_filtered <- hs_demographics[demographics_filtered_idx, ]
+data_structures <- c(data_structures, "demographics_filtered")
 ```
 
 ## Split the data by cure/fail for some counting
@@ -658,7 +874,7 @@ study).
 cpm_data <- normalize_expt(tc_valid, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/all_valid_samples-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/all_valid_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tc_valid, filter = TRUE, convert = "rpkm",
                             column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -687,7 +903,7 @@ clinics(tc prefix).
 cpm_data <- normalize_expt(tc_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tc_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tc_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tc_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -696,7 +912,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tc_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tc_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tc_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tc_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -705,7 +921,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tc_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tc_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tc_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tc_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -738,7 +954,7 @@ data_structures <- c(data_structures, "tcv3_samples")
 cpm_data <- normalize_expt(tcv1_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tcv1_samples-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tcv1_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tcv1_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -747,7 +963,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tcv2_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tcv2_samples-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tcv2_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tcv2_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -756,7 +972,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tcv3_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/3_cali_and_tumaco/tcv3_samples-v{ver}.xlsx"))
+    excel = glue("cpm/3_Cali_and_Tumaco/tcv3_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tcv3_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -906,7 +1122,7 @@ separations for the Tumaco-only cohort.
 
 ```{r}
 t_clinical <- tc_clinical %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "t_clinical", file = glue("rda/tmrc3_t_clinical-v{ver}.rda"))
 data_structures <- c(data_structures, "t_clinical")
 
@@ -921,7 +1137,7 @@ t_clinical_cpm_variance <- variance_expt(cpm_data)
 ```{r}
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_clinical-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_clinical-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_clinical, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -929,7 +1145,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(t_clinical, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_clinical_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_clinical_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_clinical, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -947,14 +1163,15 @@ written_expt <- write_expt(
 ## Without biopsies
 
 ```{r}
-dir.create("cpm/4_tumaco", recursive = TRUE)
+dir.create("cpm/4_Tumaco", recursive = TRUE)
 t_clinical_nobiop <- subset_expt(t_clinical, subset = "typeofcells!='biopsy'")
 save(list = "t_clinical_nobiop", file = glue("rda/tmrc3_t_clinical_nobiop-v{ver}.rda"))
 data_structures <- c(data_structures, "t_clinical_nobiop")
+
 cpm_data <- normalize_expt(t_clinical_nobiop, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_clinical_nobiop-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_clinical_nobiop-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_clinical, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -964,7 +1181,7 @@ cpm_data <- normalize_expt(t_clinical_nobiop, convert = "cpm",
                            filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_clinical_nobiop_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_clinical_nobiop_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_clinical_nobiop, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1006,29 +1223,29 @@ At least in theory, everything which follows will be using the above
 of what we will work with.
 
 ```{r}
-table(pData(t_clinical)$drug)
-table(pData(t_clinical)$clinic)
-table(pData(t_clinical)$finaloutcome)
-table(pData(t_clinical)$typeofcells)
-table(pData(t_clinical)$visit)
-summary(as.numeric(pData(t_clinical)$eb_lc_tiempo_evolucion))
-summary(as.numeric(pData(t_clinical)$eb_lc_tto_mcto_glucan_dosis))
-summary(as.numeric(pData(t_clinical)$v3_lc_ejey_lesion_mm_1))
-summary(as.numeric(pData(t_clinical)$v3_lc_lesion_area_1))
-summary(as.numeric(pData(t_clinical)$v3_lc_ejex_ulcera_mm_1))
-table(pData(t_clinical)$eb_lc_sexo)
-table(pData(t_clinical)$eb_lc_etnia)
-summary(as.numeric(pData(t_clinical)$edad))
-table(pData(t_clinical)$eb_lc_peso)
-table(pData(t_clinical)$eb_lc_estatura)
+table(pData(t_clinical)[["drug"]])
+table(pData(t_clinical)[["clinic"]])
+table(pData(t_clinical)[["finaloutcome"]])
+table(pData(t_clinical)[["typeofcells"]])
+table(pData(t_clinical)[["visitnumber"]])
+summary(pData(t_clinical)[["Evolution_Time"]])
+summary(pData(t_clinical)[["Prescribed_Daily_Dose_Gluc"]])
+summary(pData(t_clinical)[["V3_Vertical_Axis_Lesion"]])
+summary(pData(t_clinical)[["V3_Total_Area_Lesion"]])
+summary(pData(t_clinical)[["V3_Horizontal_Axis_Ulcer"]])
+table(pData(t_clinical)[["Sex"]])
+table(pData(t_clinical)[["Ethnicity"]])
+summary(pData(t_clinical)[["Age"]])
+summary(pData(t_clinical)[["Weight"]])
+table(pData(t_clinical)[["Height"]])
 
-length(unique(pData(t_clinical)[["codigo_paciente"]]))
+length(unique(pData(t_clinical)[["Patient_ID"]]))
 only_cure <- pData(t_clinical)[["finaloutcome"]] == "cure"
 c_meta <- pData(t_clinical)[only_cure, ]
-length(unique(c_meta[["codigo_paciente"]]))
+length(unique(c_meta[["Patient_ID"]]))
 only_fail <- pData(t_clinical)[["finaloutcome"]] == "failure"
 f_meta <- pData(t_clinical)[only_fail, ]
-length(unique(f_meta[["codigo_paciente"]]))
+length(unique(f_meta[["Patient_ID"]]))
 ```
 
 ## Split the data by cure/fail for some counting
@@ -1054,13 +1271,14 @@ with the removal of the Cali samples.
 
 ```{r}
 t_biopsies <- tc_biopsies %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "t_biopsies", file = glue("rda/tmrc3_t_biopsies-v{ver}.rda"))
 data_structures <- c(data_structures, "t_biopsies")
+
 cpm_data <- normalize_expt(t_biopsies, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_biopsies-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_biopsies-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_biopsies, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1069,24 +1287,25 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(t_biopsies, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_biopsies_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_biopsies_sva-v{ver}.xlsx"))
 ```
 
 ### Tumaco Eosinophils
 
 ```{r}
 t_eosinophils <- tc_eosinophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "t_eosinophils", file = glue("rda/tmrc3_t_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "t_eosinophils")
+
 cpm_data <- normalize_expt(t_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_eosinophils-v{ver}.xlsx"))
 cpm_data <- normalize_expt(t_eosinophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_eosinophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_eosinophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_eosinophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1097,13 +1316,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 t_monocytes <- tc_monocytes %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "t_monocytes", file = glue("rda/tmrc3_t_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "t_monocytes")
+
 cpm_data <- normalize_expt(t_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1111,7 +1331,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(t_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1122,13 +1342,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 t_neutrophils <- tc_neutrophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "t_neutrophils", file = glue("rda/tmrc3_t_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "t_neutrophils")
+
 cpm_data <- normalize_expt(t_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1136,7 +1357,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(t_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(t_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1147,13 +1368,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv1_samples <- tcv1_samples %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv1_samples", file = glue("rda/tmrc3_tv1_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tv1_samples")
+
 cpm_data <- normalize_expt(tv1_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1161,7 +1383,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv1_samples, convert="cpm", filter=TRUE, batch="svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1172,13 +1394,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv2_samples <- tcv2_samples %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv2_samples", file = glue("rda/tmrc3_tv2_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tv2_samples")
+
 cpm_data <- normalize_expt(tv2_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1186,7 +1409,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv2_samples, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1197,13 +1420,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv3_samples <- tcv3_samples %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv3_samples", file = glue("rda/tmrc3_tv3_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tv3_samples")
+
 cpm_data <- normalize_expt(tv3_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1211,7 +1435,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv3_samples, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1222,13 +1446,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv1_eosinophils <- tcv1_eosinophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv1_eosinophils", file = glue("rda/tmrc3_tv1_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv1_eosinophils")
+
 cpm_data <- normalize_expt(tv1_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1236,7 +1461,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv1_eosinophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_eosinophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_eosinophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_eosinophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1247,13 +1472,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv2_eosinophils <- tcv2_eosinophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv2_eosinophils", file = glue("rda/tmrc3_tv2_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv2_eosinophils")
+
 cpm_data <- normalize_expt(tv2_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1261,7 +1487,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv2_eosinophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_eosinophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_eosinophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_eosinophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1272,13 +1498,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv3_eosinophils <- tcv3_eosinophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv3_eosinophils", file = glue("rda/tmrc3_tv3_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv3_eosinophils")
+
 cpm_data <- normalize_expt(tv3_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1286,7 +1513,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv3_eosinophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_eosinophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_eosinophils_sva-v{ver}.xlsx"))
 ## Note, the cbcb filter left behind a sufficient number of zeros that it confused cpm.
 rpkm_data <- normalize_expt(tv3_eosinophils, filter = "simple", batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
@@ -1298,13 +1525,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv1_monocytes <- tcv1_monocytes %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv1_monocytes", file = glue("rda/tmrc3_tv1_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tv1_monocytes")
+
 cpm_data <- normalize_expt(tv1_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1312,7 +1540,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv1_monocytes, convert="cpm", filter=TRUE, batch="svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1323,13 +1551,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv2_monocytes <- tcv2_monocytes %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv2_monocytes", file = glue("rda/tmrc3_tv2_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tv2_monocytes")
+
 cpm_data <- normalize_expt(tv2_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1337,7 +1566,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv2_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1348,13 +1577,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv3_monocytes <- tcv3_monocytes %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv3_monocytes", file = glue("rda/tmrc3_tv3_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tv3_monocytes")
+
 cpm_data <- normalize_expt(tv3_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1362,7 +1592,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv3_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1373,13 +1603,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv1_neutrophils <- tcv1_neutrophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv1_neutrophils", file = glue("rda/tmrc3_tv1_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv1_neutrophils")
+
 cpm_data <- normalize_expt(tv1_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1387,7 +1618,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv1_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv1_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv1_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv1_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1398,13 +1629,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv2_neutrophils <- tcv2_neutrophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv2_neutrophils", file = glue("rda/tmrc3_tv2_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv2_neutrophils")
+
 cpm_data <- normalize_expt(tv2_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1412,7 +1644,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv2_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv2_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv2_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv2_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1423,13 +1655,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 tv3_neutrophils <- tcv3_neutrophils %>%
-  subset_expt(subset = "clinic=='Tumaco'")
+  subset_expt(subset = "clinic=='tumaco'")
 save(list = "tv3_neutrophils", file = glue("rda/tmrc3_tv3_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tv3_neutrophils")
+
 cpm_data <- normalize_expt(tv3_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1437,7 +1670,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(tv3_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/tv3_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/tv3_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(tv3_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1451,9 +1684,9 @@ to perform comparisons among the Cali samples.  The following blocks
 therefore separate them out in a similar fashion.
 
 ```{r}
-dir.create("cpm/4_cali", recursive = TRUE)
+dir.create("cpm/4_Cali", recursive = TRUE)
 c_clinical <- tc_clinical %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "c_clinical", file = glue("rda/tmrc3_c_clinical-v{ver}.rda"))
 data_structures <- c(data_structures, "c_clinical")
 
@@ -1462,7 +1695,7 @@ c_clinical_cpm_variance <- variance_expt(cpm_data)
 
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_clinical-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_clinical-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_clinical, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1470,19 +1703,24 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(c_clinical, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_clinical_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_clinical_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_clinical, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
           file = glue("rpkm/c_clinical_sva-v{ver}.csv"))
+```
 
+The Cali samples without biopsies.
+
+```{r}
 c_clinical_nobiop <- subset_expt(c_clinical, subset = "typeofcells!='biopsy'")
 save(list = "c_clinical_nobiop", file = glue("rda/tmrc3_c_clinical_nobiop-v{ver}.rda"))
 data_structures <- c(data_structures, "c_clinical_nobiop")
+
 cpm_data <- normalize_expt(c_clinical_nobiop, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_clinical_nobiop-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_clinical_nobiop-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_clinical, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1491,7 +1729,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(c_clinical_nobiop, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_clinical_nobiop_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_clinical_nobiop_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_clinical_nobiop, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1500,6 +1738,11 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ### Pull out the top-n most variant genes
 
+I added a few columns to the gene annotations reflecting the
+variance/stdev/mean expression of each gene.  This really highlights
+the extraordinary degree to which genes are changing in the data...
+
+
 ```{r}
 top_expt <- normalize_expt(c_clinical_cpm_variance, filter = TRUE) %>%
   variance_expt()
@@ -1507,6 +1750,7 @@ top_fd <- fData(top_expt)
 top_ex <- exprs(top_expt)
 idx <- order(top_fd[["exprs_gene_stdev"]], decreasing = TRUE)
 top_df <- top_fd[idx, ]
+
 written <- write_xlsx(
     data = head(top_fd, n = 100),
     excel = glue("excel/c_clinical_cpm_stdev_top100-v{ver}.xlsx"))
@@ -1517,6 +1761,7 @@ bottom_fd <- fData(bottom_expt)
 bottom_ex <- exprs(bottom_expt)
 idx <- order(bottom_fd[["exprs_gene_stdev"]])
 bottom <- bottom_fd[idx, ]
+
 written <- write_xlsx(
     data = head(bottom_fd, n = 100),
     excel = glue("excel/c_clinical_cpm_stdev_bottom100-v{ver}.xlsx"))
@@ -1528,39 +1773,39 @@ This is copy/pasted from above and prints out how many of each sample
 type there are of each category.
 
 ```{r}
-table(pData(c_clinical)$drug)
-table(pData(c_clinical)$clinic)
-table(pData(c_clinical)$finaloutcome)
-table(pData(c_clinical)$typeofcells)
-table(pData(c_clinical)$visit)
-summary(as.numeric(pData(c_clinical)$eb_lc_tiempo_evolucion))
-summary(as.numeric(pData(c_clinical)$eb_lc_tto_mcto_glucan_dosis))
-summary(as.numeric(pData(c_clinical)$v3_lc_ejey_lesion_mm_1))
-summary(as.numeric(pData(c_clinical)$v3_lc_lesion_area_1))
-summary(as.numeric(pData(c_clinical)$v3_lc_ejex_ulcera_mm_1))
-table(pData(c_clinical)$eb_lc_sexo)
-table(pData(c_clinical)$eb_lc_etnia)
-summary(as.numeric(pData(c_clinical)$edad))
-table(pData(c_clinical)$eb_lc_peso)
-table(pData(c_clinical)$eb_lc_estatura)
+table(pData(c_clinical)[["drug"]])
+table(pData(c_clinical)[["clinic"]])
+table(pData(c_clinical)[["finaloutcome"]])
+table(pData(c_clinical)[["typeofcells"]])
+table(pData(c_clinical)[["visitnumber"]])
+summary(pData(c_clinical)[["Evolution_Time"]])
+summary(pData(c_clinical)[["Prescribed_Daily_Dose_Gluc"]])
+summary(pData(c_clinical)[["V3_Vertical_Axis_Lesion"]])
+summary(pData(c_clinical)[["V3_Total_Area_Lesion"]])
+summary(pData(c_clinical)[["V3_Horizontal_Axis_Ulcer"]])
+table(pData(c_clinical)[["Sex"]])
+table(pData(c_clinical)[["Ethnicity"]])
+summary(pData(c_clinical)[["Age"]])
+summary(pData(c_clinical)[["Height"]])
+summary(pData(c_clinical)[["Weight"]])
 
-length(unique(pData(c_clinical)[["codigo_paciente"]]))
+length(unique(pData(c_clinical)[["Patient_ID"]]))
 only_cure <- pData(c_clinical)[["finaloutcome"]] == "cure"
 c_meta <- pData(c_clinical)[only_cure, ]
-length(unique(c_meta[["codigo_paciente"]]))
+length(unique(c_meta[["Patient_ID"]]))
 only_fail <- pData(c_clinical)[["finaloutcome"]] == "failure"
 f_meta <- pData(c_clinical)[only_fail, ]
-length(unique(f_meta[["codigo_paciente"]]))
+length(unique(f_meta[["Patient_ID"]]))
 ```
 
 ## Split the data by cure/fail for some counting
 
 ```{r}
 cali_cure <- subset_expt(c_clinical, subset = "finaloutcome=='cure'")
-table(pData(cali_cure)$visitnumber)
+table(pData(cali_cure)[["visitnumber"]])
 
 cali_fail <- subset_expt(c_clinical, subset = "finaloutcome=='failure'")
-table(pData(cali_fail)$visitnumber)
+table(pData(cali_fail)[["visitnumber"]])
 ```
 
 ## Subset: Create Cali-specific versions of the various structures
@@ -1576,13 +1821,14 @@ regenerate the data from the original expressionsets.
 
 ```{r}
 c_biopsies <- tc_biopsies %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "c_biopsies", file = glue("rda/tmrc3_c_biopsies-v{ver}.rda"))
 data_structures <- c(data_structures, "c_biopsies")
+
 cpm_data <- normalize_expt(c_biopsies, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_biopsies-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_biopsies-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_biopsies, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1591,24 +1837,25 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(c_biopsies, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_biopsies_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_biopsies_nosva-v{ver}.xlsx"))
 ```
 
 ### Cali Eosinophils
 
 ```{r}
 c_eosinophils <- tc_eosinophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "c_eosinophils", file = glue("rda/tmrc3_c_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "c_eosinophils")
+
 cpm_data <- normalize_expt(c_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_eosinophils-v{ver}.xlsx"))
 cpm_data <- normalize_expt(c_eosinophils, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_eosinophils_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_eosinophils_nosva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_eosinophils, filter = TRUE) %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1619,13 +1866,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 c_monocytes <- tc_monocytes %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "c_monocytes", file = glue("rda/tmrc3_c_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "c_monocytes")
+
 cpm_data <- normalize_expt(c_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1633,7 +1881,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(c_monocytes, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_monocytes_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_monocytes_nosva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1644,13 +1892,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 c_neutrophils <- tc_neutrophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "c_neutrophils", file = glue("rda/tmrc3_c_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "c_neutrophils")
+
 cpm_data <- normalize_expt(c_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_neutrophil-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_neutrophil-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1658,7 +1907,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(c_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(c_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1669,13 +1918,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv1_samples <- tcv1_samples %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv1_samples", file = glue("rda/tmrc3_cv1_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "cv1_samples")
+
 cpm_data <- normalize_expt(cv1_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1683,7 +1933,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv1_samples, convert =  "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1694,13 +1944,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv2_samples <- tcv2_samples %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv2_samples", file = glue("rda/tmrc3_cv2_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "cv2_samples")
+
 cpm_data <- normalize_expt(cv2_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1708,7 +1959,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv2_samples, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1719,13 +1970,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv3_samples <- tcv3_samples %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv3_samples", file = glue("rda/tmrc3_cv3_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "cv3_samples")
+
 cpm_data <- normalize_expt(cv3_samples, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_samples-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_samples-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_samples, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1733,7 +1985,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv3_samples, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_samples_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_samples_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_samples, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1744,13 +1996,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv1_eosinophils <- tcv1_eosinophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv1_eosinophils", file = glue("rda/tmrc3_cv1_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv1_eosinophils")
+
 cpm_data <- normalize_expt(cv1_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1758,7 +2011,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv1_eosinophils, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_eosinophils_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_eosinophils_nosva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_eosinophils, filter = TRUE) %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1769,13 +2022,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv2_eosinophils <- tcv2_eosinophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv2_eosinophils", file = glue("rda/tmrc3_cv2_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv2_eosinophils")
+
 cpm_data <- normalize_expt(cv2_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1783,7 +2037,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv2_eosinophils, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_eosinophils_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_eosinophils_nosva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_eosinophils, filter = TRUE) %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1794,13 +2048,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv3_eosinophils <- tcv3_eosinophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv3_eosinophils", file = glue("rda/tmrc3_cv3_eosinophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv3_eosinophils")
+
 cpm_data <- normalize_expt(cv3_eosinophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_eosinophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_eosinophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_eosinophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1808,7 +2063,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv3_eosinophils, convert = "cpm", filter = TRUE)
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_eosinophils_nosva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_eosinophils_nosva-v{ver}.xlsx"))
 ## Note, the cbcb filter left behind a sufficient number of zeros that it confused cpm.
 rpkm_data <- normalize_expt(cv3_eosinophils, filter = "simple") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
@@ -1820,13 +2075,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv1_monocytes <- tcv1_monocytes %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv1_monocytes", file = glue("rda/tmrc3_cv1_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "cv1_monocytes")
+
 cpm_data <- normalize_expt(cv1_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1834,7 +2090,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv1_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1845,13 +2101,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv2_monocytes <- tcv2_monocytes %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv2_monocytes", file = glue("rda/tmrc3_cv2_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "cv2_monocytes")
+
 cpm_data <- normalize_expt(cv2_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1859,7 +2116,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv2_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1870,13 +2127,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv3_monocytes <- tcv3_monocytes %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv3_monocytes", file = glue("rda/tmrc3_cv3_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "cv3_monocytes")
+
 cpm_data <- normalize_expt(cv3_monocytes, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_monocytes-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_monocytes-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_monocytes, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1884,7 +2142,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv3_monocytes, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_monocytes_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_monocytes_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_monocytes, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1895,13 +2153,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv1_neutrophils <- tcv1_neutrophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv1_neutrophils", file = glue("rda/tmrc3_cv1_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv1_neutrophils")
+
 cpm_data <- normalize_expt(cv1_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1909,7 +2168,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv1_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv1_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv1_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv1_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1920,13 +2179,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv2_neutrophils <- tcv2_neutrophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv2_neutrophils", file = glue("rda/tmrc3_cv2_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv2_neutrophils")
+
 cpm_data <- normalize_expt(cv2_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1934,7 +2194,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv2_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv2_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv2_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv2_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1945,13 +2205,14 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 
 ```{r}
 cv3_neutrophils <- tcv3_neutrophils %>%
-  subset_expt(subset = "clinic=='Cali'")
+  subset_expt(subset = "clinic=='cali'")
 save(list = "cv3_neutrophils", file = glue("rda/tmrc3_cv3_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "cv3_neutrophils")
+
 cpm_data <- normalize_expt(cv3_neutrophils, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_neutrophils-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_neutrophils-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_neutrophils, filter = TRUE, convert = "rpkm",
                             na_to_zero = TRUE, column = "mean_cds_len")
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1959,7 +2220,7 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 cpm_data <- normalize_expt(cv3_neutrophils, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/cv3_neutrophils_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/cv3_neutrophils_sva-v{ver}.xlsx"))
 rpkm_data <- normalize_expt(cv3_neutrophils, filter = TRUE, batch = "svaseq") %>%
   normalize_expt(convert = "rpkm", column = "mean_cds_len", na_to_zero = TRUE)
 write.csv(x = as.data.frame(exprs(rpkm_data)),
@@ -1988,7 +2249,7 @@ tc_v1vs <- set_expt_conditions(
   tc_v1vs, fact = "visit", colors = color_choices[["two_visits"]])
 save(list = "tc_v1vs", file = glue("rda/tmrc3_tc_v1vs-v{ver}.rda"))
 data_structures <- c(data_structures, "tc_v1vs")
-t_v1vs <- subset_expt(tc_v1vs, subset = "clinic == 'Tumaco'")
+t_v1vs <- subset_expt(tc_v1vs, subset = "clinic == 'tumaco'")
 save(list = "t_v1vs", file = glue("rda/tmrc3_t_v1vs-v{ver}.rda"))
 data_structures <- c(data_structures, "t_v1vs")
 
@@ -2001,11 +2262,11 @@ data_structures <- c(data_structures, "t_visit")
 cpm_data <- normalize_expt(t_visit, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_visit-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_visit-v{ver}.xlsx"))
 cpm_data <- normalize_expt(t_visit, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/t_visit_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/t_visit_sva-v{ver}.xlsx"))
 ```
 
 ### Visit cure/fail contrasts
@@ -2030,7 +2291,6 @@ save(list = "t_visitcf_neutrophil", file = glue("rda/tmrc3_t_visitcf_neutrophil-
 data_structures <- c(data_structures, "t_visitcf_neutrophil")
 ```
 
-
 ### Cali compare visits
 
 Is this redundant?
@@ -2041,14 +2301,15 @@ c_visit <- set_expt_conditions(c_clinical, fact = "visitnumber") %>%
   subset_expt(subset = "typeofcells!='biopsy'")
 save(list = "c_visit", file = glue("rda/tmrc3_c_visit-v{ver}.rda"))
 data_structures <- c(data_structures, "c_visit")
+
 cpm_data <- normalize_expt(c_visit, convert = "cpm")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_tumaco/c_visit-v{ver}.xlsx"))
+    excel = glue("cpm/4_Tumaco/c_visit-v{ver}.xlsx"))
 cpm_data <- normalize_expt(c_visit, convert = "cpm", filter = TRUE, batch = "svaseq")
 written <- write_xlsx(
     exprs(cpm_data),
-    excel = glue("cpm/4_cali/c_visit_sva-v{ver}.xlsx"))
+    excel = glue("cpm/4_Cali/c_visit_sva-v{ver}.xlsx"))
 ```
 
 ### Visit cure/fail contrasts
@@ -2259,6 +2520,68 @@ save(list = "t_etnia_expt", file = glue("rda/tmrc3_t_etnia-v{ver}.rda"))
 data_structures <- c(data_structures, "t_etnia_expt")
 ```
 
+# Bring back the parasites
+
+haha I knew I should not have removed the following block.  In
+previous iterations of this I included a datastructure which pulled in
+the parasite reads from all samples with 'sufficient' coverage.  This
+is not very many samples, for the simple reason that the drug
+treatment basically works!  As a result, we removed the following
+section from the container (also for space).  Oh, I may need to copy
+some more count tables into the container recipe for this to work.
+
+It should be noted (if anyone ever reads this), that I also did a
+version of all of these analyses where I explicitly made a
+concatenated database (genome/gff/CDS) of human and parasite
+references (e.g. for salmon/hisat/bwa/etc) and did all of this using
+it in order to satisfy myself that the various treatments are similar
+enough to be called the same (I just saw that block while hunting for
+this parasite data and thought it was worth noting).
+
+In any event, the following is copy/pasted from my working tree:
+
+## Dataset: Parasite reads
+
+Make an expressionset of the parasite reads in the TMRC3 samples and
+distinguish between the faux and real reads.
+E.g: Are there samples which definitively contain parasites?
+
+Later, I manually went through the mappings of samples with a
+significant number of parasite reads in IGV with some TMRC2 known
+zymodeme samples.  In many cases it is possible to state definitively
+the classification of the parasite which infected an individual.
+
+Note: I am renaming the resulting data structures a little because we
+generally do not call things 'tmrc2/tmrc3/etc' in the container.
+
+```{r}
+lp_expt <- create_expt(
+  samplesheet,
+  file_column = "lpanamensisv36hisatfile", gene_info = all_lp_annot) %>%
+  subset_expt(coverage = 30000) %>%
+  subset_expt(nonzero = 3000) %>%
+  set_expt_conditions(fact = "typeofcells") %>%
+  subset_expt(subset = "clinic!='undefined'") %>%
+  sanitize_expt_pData("finaloutcome")
+
+visit_fact <- pData(lp_expt)[["visitnumber"]]
+batch_na <- is.na(visit_fact)
+visit_fact[batch_na] <- "undefined"
+lp_expt <- set_expt_batches(lp_expt, fact = visit_fact)
+
+save(list = "lp_expt", file = glue("rda/lp_expt_all_sanitized-v{ver}.rda"))
+data_structures <- c(data_structures, "lp_expt")
+```
+
+The above block is similar in concept to the previous expressionset
+creation.  It uses a different column and currently ignores the gene
+annotations.  Given that many of the samples have essentially 0 reads,
+I set a cutoff of only 20 observed genes.  Finally, I did a quick and
+dirty PCA plot of this peculiar data structure in the hopes of being
+able to 'see' the difference between what are assumed to be 'real'
+samples with a significant number of 'real' parasite reads vs. those
+samples which just have a couple of potentially spurious reads.
+
 # Save all data structures into one big pile
 
 ```{r}
@@ -2281,3 +2604,5 @@ message("Saving to ", savefile)
 ```{r, eval=FALSE}
 tmp <- loadme(filename = savefile)
 ```
+
+# Bibliography

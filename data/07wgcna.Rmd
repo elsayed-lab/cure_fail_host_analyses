@@ -3,6 +3,7 @@ title: "TMRC3 `r Sys.getenv('VERSION')`: Exploring WGCNA"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
 runtime: shiny
+bibliography: atb.bib
 output:
   html_document:
     code_download: true
@@ -63,8 +64,23 @@ loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 
 # Working to get an initial understanding of WGCNA
 
+The analyses in this document are primarily taken from a notebook
+provided by Alejandro in which he sought to leverage WGCNA
+(@langfelderWGCNAPackageWeighted2008) to see if/how well it
+corresponds to results provided by STRING
+(@szklarczykSTRINGDatabase20112011)  and/or our DE analyses. Since it
+seemed likely that at least some of the figures/analyses he produced
+might end up in the paper, I emailed him for a copy of his notebook
+and plopped his work here (with minor modifications for style
+and readability).
+
 I am using Alejandro's document to get a feeling for how WGCNA is
-getting modules relevant to cure/fail.
+getting modules relevant to cure/fail.  I have been relatively
+skeptical of WGCNA; I watched Keith, who is freaky brilliant, struggle
+with it and get very frustrated how even miniscule changes to the
+input data would result in profound changes in the resulting modules.
+Nonetheless, this seemed like a good opportunity for me to get
+acquainted with it.
 
 I am reasonably certain he is in turn using this document as his
 input:
@@ -292,9 +308,4 @@ table(pData(l2input)[first_group, "visitnumber"])
 table(pData(l2input)[second_group, "visitnumber"])
 ```
 
-```{r}
-pander::pander(sessionInfo())
-message("This is hpgltools commit: ", get_git_commit())
-message("Saving to ", savefile)
-# tmp <- sm(saveme(filename = savefile))
-```
+# Bibliography

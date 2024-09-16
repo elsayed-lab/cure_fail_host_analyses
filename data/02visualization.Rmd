@@ -2,6 +2,7 @@
 title: "TMRC3 `r Sys.getenv('VERSION')`: Visualizing Analyses"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
+bibliography: atb.bib
 output:
  html_document:
   code_download: true
@@ -37,11 +38,14 @@ pre {
 </style>
 
 ```{r, include=FALSE}
-library(hpgltools)
+library(broom) ## Provides tidy methods for lm/glm/etc
 library(dplyr)
-library(forcats)
-library(glue)
 library(EuPathDB)
+library(forcats)
+library(ggstatsplot)
+library(glue)
+library(hpgltools)
+library(lares)
 
 knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
 knitr::opts_chunk$set(
@@ -60,13 +64,28 @@ savefile <- gsub(pattern = "\\.Rmd", replace="\\.rda\\.xz", x = rmd_file)
 loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 ```
 
+# TODO:
+
+1.  Ensure that no variance partition includes biopsies beyond some
+    initial cursory.
+
+# Changelog
+
+* Set input data to the new 202212 dataset.  Looking for some messed up colors.
+* Reasonably certain I figured out the color discrepency.  I was
+  letting the eosinophil dataset choose its own colors rather than
+  force them to be the same as the other cell types; even though I
+  _thought_ I told them to explicitly set their colors to be the same
+  as the others.  I think the changes I made in datasets.Rmd fixed
+  this, so I regenerated the rda/etc in that document and am now
+  testing the colors here.
+
 # Introduction
 
 Moving all of the visualization and diagnostic tasks to this document.
 The metadata and gene annotation data collection tasks are therefore
 in tmrc3_data_structures.Rmd.  The reasons for some of the data
-structure creation in that document is made clear in this document,
-but they are all performed there.
+structure creation in that document is made clear here.
 
 # Notes
 
@@ -85,10 +104,6 @@ the person to be defined as failure.
 
 2. Note from Maria Adelaida: Some chemokines are suggestive of
    Eosinophil recruitment.
-
-3. Most of the documents in this tree have another version with a
-   suffix 'commentary' in which I have significantly more text
-   describing my thinking at the various steps.
 
 ## Goals
 
@@ -142,26 +157,26 @@ tc_expt_norm <- normalize_expt(hs_expt, filter = TRUE, norm = "quant",
 
 tc_expt_drug_pca <- plot_pca(tc_expt_norm, cis = NULL)
 tc_expt_drug_pca <- plot_pca(tc_expt_norm)
-tc_expt_drug_pca$plot
+tc_expt_drug_pca
 
 tc_expt_nb <- normalize_expt(hs_expt, filter = TRUE, convert = "cpm",
                              transform = "log2", batch = "svaseq") %>%
   set_expt_batches(fact = "drug")
 tc_expt_drug_nb_pca <- plot_pca(tc_expt_nb)
-tc_expt_drug_nb_pca$plot
+tc_expt_drug_nb_pca
 
-t_expt_drug <- subset_expt(hs_expt, subset = "clinic=='Tumaco'")
+t_expt_drug <- subset_expt(hs_expt, subset = "clinic=='tumaco'")
 t_expt_norm <- normalize_expt(t_expt_drug, filter = TRUE, norm = "quant",
                               convert = "cpm", transform = "log2") %>%
   set_expt_batches(fact = "drug")
 t_expt_drug_pca <- plot_pca(t_expt_norm)
-t_expt_drug_pca$plot
+t_expt_drug_pca
 
 t_expt_nb <- normalize_expt(t_expt_drug, filter = TRUE, convert = "cpm",
                              transform = "log2", batch = "svaseq") %>%
   set_expt_batches(fact = "drug")
 t_expt_drug_nb_pca <- plot_pca(t_expt_nb)
-t_expt_drug_nb_pca$plot
+t_expt_drug_nb_pca
 ```
 
 # Host Distributions/Visualizations of interest
@@ -184,9 +199,9 @@ are cure/fail, visit, and cell type.  This is the level at which we
 will choose samples to exclude from future analyses.
 
 ```{r}
-plot_legend(tc_biopsies)$plot
-plot_libsize(tc_biopsies)$plot
-plot_nonzero(tc_biopsies)$plot
+plot_legend(tc_biopsies)
+plot_libsize(tc_biopsies)
+plot_nonzero(tc_biopsies)
 ```
 
 plot_libsize_prepost attempts to provide an idea about how much data
@@ -208,22 +223,22 @@ biopsy_prepost
 plot_libsize(tc_eosinophils)
 plot_nonzero(tc_eosinophils)
 eosinophil_prepost <- plot_libsize_prepost(tc_eosinophils)
-eosinophil_prepost$count_plot
-eosinophil_prepost$lowgene_plot
+eosinophil_prepost[["count_plot"]]
+eosinophil_prepost[["lowgene_plot"]]
 ## Minimum number of eosinophil genes: ~ 13,500
 
 plot_libsize(tc_monocytes)
 plot_nonzero(tc_monocytes)
 monocyte_prepost <- plot_libsize_prepost(tc_monocytes)
-monocyte_prepost$count_plot
-monocyte_prepost$lowgene_plot
+monocyte_prepost[["count_plot"]]
+monocyte_prepost[["lowgene_plot"]]
 ## Minimum number of monocyte genes: ~ 7,500 before setting the minimum.
 
 plot_libsize(tc_neutrophils)
 plot_nonzero(tc_neutrophils)
 neutrophil_prepost <- plot_libsize_prepost(tc_neutrophils)
-neutrophil_prepost$count_plot
-neutrophil_prepost$lowgene_plot
+neutrophil_prepost[["count_plot"]]
+neutrophil_prepost[["lowgene_plot"]]
 ## Minimum number of neutrophil genes: ~ 10,000 before setting minimum coverage.
 ```
 
@@ -232,7 +247,460 @@ basis: the number of reads observed / sample and a plot of observed
 genes with respect to coverage.  I made some comments with my
 observations about the number of genes.
 
-## Global views of all cell types
+# Seeking Confounded/Correlated factors in the metadata
+
+One task we were uncertain of how to address: how best to consider the
+many factors provided in the metadata and whether or not they are
+hightly correlated or completely confounded.  Theresa provided some
+suggestions about how we might measure the degree to which correlated
+variables might be a problem and decide which variables we can(not)
+include in our statistical models of the data when performing the
+differential expression analyses.
+
+## Correlated factors in the Tumaco+Cali data
+
+I am going to implement this in a few steps, first I will do a
+cross-correlation of a relatively large array of variables in the
+data, then focus on a few which we suspect to be problematic.
+
+```{r}
+initial_queries <- c("Sex", "Ethnicity", "Age", "Weight", "Height",
+                     "Previously_Diagnosed", "Evolution_Time",
+                     "Num_Active_Lesions", "V2_New_Lesions",
+                     "V3_New_Lesions", "Adherence", "Therapeutic_Outcome_Final")
+initial_df <- demographics_filtered[, initial_queries]
+summary(initial_df)
+initial_numeric <- initial_df
+for (f in colnames(initial_numeric)) {
+  initial_numeric[[f]] <- as.numeric(as.factor(initial_numeric[[f]]))
+}
+initial_cross <- corr_cross(initial_numeric)
+pp(file = "images/initial_crosscor.pdf")
+initial_cross
+dev.off()
+initial_cross
+```
+
+We should remove height and weight, but I wanted first to see that
+everything was working as expected.  We also will want to exclude
+final outcome when searching for factors which are unsuitable for
+model inclusion.
+
+```{r}
+model_test_df <- initial_df
+model_test_df[["Weight"]] <- NULL
+model_test_df[["Height"]] <- NULL
+model_test_df[["Therapeutic_Outcome_Final"]] <- NULL
+model_test_numeric <- initial_numeric
+model_test_numeric[["Weight"]] <- NULL
+model_test_numeric[["Height"]] <- NULL
+model_test_numeric[["Therapeutic_Outcome_Final"]] <- NULL
+
+test_cross <- corr_cross(model_test_numeric)
+pp(file = "images/model_test_crosscor.pdf")
+test_cross
+dev.off()
+test_cross
+```
+
+At this point we have some factors which are flagged as highly
+correlated.  Keep this in mind when building models later.
+
+## Regression analyses vs outcome
+
+Now examine a more limited set of likely interesting factors.
+
+!!An important note: 202408!!
+
+In the following block I changed the input from the full merged
+demographics by sample (e.g. there are multiple rows for each person
+coming from the combination of multiple visits/celltypes), to the one
+row/person found in the demographics data.
+
+In addition, in my initial implementation, I did all analyses using
+linear regression; Neal kindly pointed out this is not optimal.
+
+Finally, it is probably pretty obvious that this is my first foray
+into the usage of regression analyses vis a vis comparing various
+metadata factors and estimating their significance with respect to our
+outcome variable.  Thus, I kind of fool around in some of the
+following blocks.
+
+```{r}
+regression_queries <- c("Therapeutic_Outcome_Final", "Weight", "Sex",
+                        "Clinic", "Ethnicity", "Age")
+regression_df <- demographics_filtered[, regression_queries]
+regression_numeric <- regression_df
+for (f in colnames(regression_numeric)) {
+  regression_numeric[[f]] <- as.numeric(as.factor(regression_numeric[[f]]))
+}
+cross_df <- regression_df
+cross_df[["Therapeutic_Outcome_Final"]] <- NULL
+cross_numeric <- regression_numeric
+cross_numeric[["Therapeutic_Outcome_Final"]] <- NULL
+
+regression_cross <- corr_cross(cross_df, type = 1)
+pp(file = "images/weight_sex_clinic_ethnicity_age_factor_crosscor.pdf")
+regression_cross
+dev.off()
+regression_cross
+```
+
+The following is the version which we believe to be the most
+appropriate for the reader in a supplemental ~S1
+
+```{r}
+regression_cross_numeric <- corr_cross(cross_numeric, type = 1)
+pp(file = "figures/weight_sex_clinic_ethnicity_age_numeric_crosscor.svg")
+regression_cross_numeric
+dev.off()
+regression_cross_numeric
+```
+
+### Copy these with only the Tumaco people
+
+```{r}
+tumaco_idx <- regression_numeric[["Clinic"]] == "2"
+t_regression_numeric <- regression_numeric[tumaco_idx, ]
+t_regression_df <- regression_df[tumaco_idx, ]
+```
+
+Similarly, when we look only at Tumaco, this will also be used in
+figure ~S1
+
+```{r}
+t_regression_queries <- c("Weight", "Sex", "Ethnicity", "Age")
+t_cross_df <- t_regression_numeric[, t_regression_queries]
+t_regression_cross <- corr_cross(t_cross_df)
+pp(file = "figures/tumaco_weight_sex_ethnicity_age_numeric_crosscor.svg")
+t_regression_cross
+dev.off()
+t_regression_cross
+```
+
+Discussion with Maria Adelaida and Neal: 202408
+
+There was a brief discussion regarding how we get to the numeric
+correlations in the cross correlation plot.
+
+Najib wants to query the difference between the individual factor
+table and the various mixed model regression values.
+
+Why do linear regression vs. logistical regression?
+
+Multilevel regression vs. multiple regression:
+
+multilevel would be used when there is a nested structure to the
+experimental design.
+
+multiple regression: applying multiple factors to the regression.
+
+Save confusion by explicitly stating multi-variable.  For the purposes
+of this discussion we will avoid any multilevel regression because our
+experimental design isn't crazytown.
+
+"The main puzzle": How did sex appear as a strong effect in the
+regression when we performed the wilcox test?  It may be that the
+model used is inappropriate.
+
+Najib query: when is a mixed effect model appropriate?  lme4 and
+multilevel are more closely related and used when there are both fixed
+and random effects in the model.  It is likely that if a multilevel
+model is not appropriate, then a mixed effect is also not appropriate
+(e.g. don't use lmer/lme4).
+
+```{r}
+regression_tests <- c("Age", "Clinic", "Ethnicity", "Sex", "Weight")
+lm_regression_demographics <- extract_linear_regression(
+  regression_numeric, query = "Therapeutic_Outcome_Final", factors = regression_tests,
+  excel = glue("excel/numeric_demographics_regression_final_sex_clinic_ethnicity_age-v{ver}.xlsx"))
+pp(file = "images/demographics_only_linear_regression.svg")
+lm_regression_demographics[["forest"]]
+dev.off()
+lm_regression_demographics[["forest"]]
+lm_regression_demographics[["summary"]]
+```
+
+The following will be used as supplemental figures as well, providing
+a delineation between a multi-variable logistic regression and
+multiple single variable regressions.
+
+```{r}
+log_regression_demographics <- extract_logistic_regression(
+  regression_df, query = "Therapeutic_Outcome_Final", factors = regression_tests,
+  excel = glue("excel/tc_multivariable_logistic_regression-v{ver}.xlsx"))
+pp(file = glue("figures/tc_multivariable_logistic_regression-v{ver}.svg"))
+log_regression_demographics[["forest"]]
+dev.off()
+log_regression_demographics[["forest"]]
+log_regression_demographics[["summary"]]
+
+tc_log_iterative_regression_demographics <- iterate_logistic_regression(
+  regression_df, query = "Therapeutic_Outcome_Final", factors = regression_tests,
+  excel = glue("excel/tc_simple_logistic_regression-v{ver}.xlsx"))
+pp(file = glue("figures/tc_simple_logistic_regression-v{ver}.svg"))
+tc_log_iterative_regression_demographics[["forest"]]
+dev.off()
+tc_log_iterative_regression_demographics[["forest"]]
+tc_log_iterative_regression_demographics[["summary"]]
+```
+
+Discussion of regression with Neal:
+
+The creation of correct models, the forest plots above were created
+from a model that looks like ~ 0 + age + sex + clinic + whatever...
+Neal is building (I think) toward a conclusion which says that some of
+these factors are confounded and may need to be separated.
+
+rule of ten: for each variable in a logistic regression or survival
+analysis, one wants to have 10 more entries in the input data.  Thus
+we ideally would have 50 cures and 50 fails in order to have this many
+factors in the model.  In this data we only have ~ 30 separate people,
+so this is not tenable.
+
+I think therefore the most likely thing to build in a plot like this
+forest plot would be 1 row each variable using its result from a x ~ y
+alone.
+
+### Repeat with only Tumaco
+
+```{r}
+t_regression_tests <- c("Age", "Ethnicity", "Sex", "Weight")
+t_lm_regression_demographics <- extract_linear_regression(
+  t_regression_numeric, query = "Therapeutic_Outcome_Final", factors = t_regression_tests,
+  excel = glue("excel/numeric_demographics_regression_tumaco_final_sex_ethnicity_age-v{ver}.xlsx"))
+pp(file = "images/demographics_only_tumaco_linear_regression.svg")
+t_lm_regression_demographics[["forest"]]
+dev.off()
+t_lm_regression_demographics[["forest"]]
+t_lm_regression_demographics[["summary"]]
+```
+
+Now repeat with only Tumaco, this should also be a part of a
+supplemental Figure.
+
+```{r}
+t_log_regression_demographics <- extract_logistic_regression(
+  t_regression_df, query = "Therapeutic_Outcome_Final", factors = t_regression_tests,
+  excel = glue("excel/t_multivariable_logistic_regression-v{ver}.xlsx"))
+pp(file = glue("figures/t_multivariable_logistic_regression-v{ver}.svg"))
+t_log_regression_demographics[["forest"]]
+dev.off()
+t_log_regression_demographics[["forest"]]
+t_log_regression_demographics[["summary"]]
+
+t_log_iterative_regression_demographics <- iterate_logistic_regression(
+  t_regression_df, query = "Therapeutic_Outcome_Final", factors = t_regression_tests,
+  excel = glue("excel/t_simple_logistic_regression-v{ver}.xlsx"))
+pp(file = glue("figures/t_simple_logistic_regression-v{ver}.svg"))
+t_log_iterative_regression_demographics[["forest"]]
+dev.off()
+t_log_iterative_regression_demographics[["forest"]]
+t_log_iterative_regression_demographics[["summary"]]
+```
+
+If we decide to add things like typeofcells/visitnumber/etc to the
+above, then we will absolutely need to use multilevel regression and
+use the full combined metadata of the sample sheet and demographics
+combined.
+
+```{r}
+wanted_queries <- c("Therapeutic_Outcome_Final", "sex", "clinic", "Ethnicity", "Age")
+full_meta <- pData(tc_valid)
+full_meta_numeric <- full_meta
+for (f in wanted_queries) {
+  full_meta_numeric[[f]] <- as.numeric(as.factor(full_meta_numeric[[f]]))
+}
+
+corheat <- ggstatsplot::ggcorrmat(full_meta_numeric, cor.vars = wanted_queries)
+pp(file = "images/type_donor_final_visit_sex_clinic_etnia_age_corheat.pdf")
+corheat
+dev.off()
+corheat
+```
+
+### Repeat using a logistical model
+
+In the previous block, the function extract_stepwise_regression() uses
+a linear model to extract the f/r values used for the forest plot and
+performs a series (or one) stepwise regression.  In the following I
+will repeat that process using a logistic regression model.
+
+I bet I wrote it down somewhere above, but wtf is up with the prefix
+tdfvscea?
+
+Also, it may be because I have been messing around with wanted_mtrx,
+but it should be a set of factors, now numeric.
+
+```{r}
+## Also, we are excluding donor
+test_factors <- c("typeofcells", "visitnumber", "Sex", "clinic", "Ethnicity", "Age")
+logit_regression_test <- extract_logistic_regression(pData(tc_clinical_nobiop), query = "finaloutcome",
+                                                     factors = test_factors)
+
+logit_regression_test[["forest"]]
+logit_regression_test[["summary"]]
+```
+
+The careful reader might notice an odd change in the next block: I
+changed from 'Therapeutic_Final_Outcome' to 'finaloutcome'.  This is
+because these two data structures have slightly different sources for
+the per-person and/or per-sample annotations.  In the first instance
+(and all the previous blocks), that information is coming from the
+demographics worksheet provided by Maria Adelaida.  In the second
+instance (the following block), it is coming from the individual
+sample sheet.  The extremely careful reader would also note that there
+is a series of blocks in the data structures worksheet which seeks to
+ensure that these two data sources agree with each other, and that it
+throws a testthat-based hissy-fit if they do not.
+
+```{r}
+test_queries <- c("clinic", "Sex", "Ethnicity", "Age", "finaloutcome")
+tc_regression_numeric <- pData(tc_clinical_nobiop)[, test_queries]
+numeric_mtrx <- pData(t_clinical_nobiop)[, test_queries]
+for (f in colnames(numeric_mtrx)) {
+  tc_regression_numeric[[f]] <- as.numeric(tc_regression_numeric[[f]])
+  numeric_mtrx[[f]] <- as.numeric(numeric_mtrx[[f]])
+}
+
+corheat <- ggstatsplot::ggcorrmat(numeric_mtrx, label = TRUE, cor.vars = test_queries)
+pp(file = "images/corheat_tumaco_cali.png")
+corheat
+dev.off()
+corheat
+```
+
+This correlation heatmap tells us that it is a bad idea to
+simultaneously consider Age and Ethnicity in any models we create to
+express the data.  It may be possible to make a guess about which is
+more appropriate to consider by performing a regression table of each
+individually?
+
+Let us try once with all factors included, then remove Ethnicity and
+Age sequentially.  It might be wiser to use the quartile'd version of
+age?
+
+Fundamentally, this just repeats what we just saw, but makes clearer
+that Age and Ethnicity are problematic if placed in the same model.
+My reasoning: Theresa suggested that any correlation >= 0.65 is
+problematic.
+
+The following block was originally a bit wrong-headed because it was
+performed before we realized that we were feeding the lm the full
+experimental design with multiple entries per person.
+
+I modified it to use the more appropriate data and decided to leave it
+here as a reminder.
+
+```{r}
+csea_extracted_regression <- extract_linear_regression(
+  tc_regression_numeric, query = "finaloutcome",
+  factors = c("clinic", "Sex", "Ethnicity", "Age"), scale = FALSE,
+  excel = "excel/tc_regression_table_csea.xlsx")
+pp(file = "images/tc_regression_csea.png")
+csea_extracted_regression[["forest"]]
+dev.off()
+csea_extracted_regression[["forest"]]
+csea_extracted_regression[["summary"]]
+
+csa_extracted_regression <- extract_linear_regression(
+  tc_regression_numeric, query = "finaloutcome",
+  factors = c("clinic", "Sex", "Age"),
+  excel = "excel/tc_regression_table_csa.xlsx")
+pp(file = "images/tc_regression_csa.png")
+csa_extracted_regression[["forest"]]
+dev.off()
+csa_extracted_regression[["forest"]]
+csa_extracted_regression[["summary"]]
+
+cse_extracted_regression <- extract_linear_regression(
+  tc_regression_numeric, query = "finaloutcome",
+  factors = c("clinic", "Sex", "Ethnicity"),
+  excel = "excel/tc_regression_table_cse.xlsx")
+pp(file = "images/tc_regression_cse.png")
+cse_extracted_regression[["forest"]]
+dev.off()
+cse_extracted_regression[["forest"]]
+cse_extracted_regression[["summary"]]
+```
+
+## Repeat with only Tumaco
+
+Thus, clinic cannot be in the model.  In addition I will remove
+height/weight because we know a priori how they correlate.
+
+```{r}
+initial_queries <- c("Sex", "Ethnicity", "Age",
+                     "Evolution_Time", "Num_Active_Lesions",
+                     "V2_New_Lesions", "V3_New_Lesions",
+                     "Adherence", "finaloutcome")
+t_initial_mtrx <- pData(t_clinical_nobiop)[, initial_queries]
+
+tumaco_cross <- corr_cross(t_initial_mtrx)
+pp(file = "images/tumaco_crosscor.png")
+tumaco_cross
+dev.off()
+tumaco_cross
+```
+
+Once again, let us consider a smaller set to identify factors that
+should not go into a model test together, we assume that once again
+this will prove to be Ethnicity and Age.
+
+```{r}
+test_queries <- c("Sex", "Ethnicity", "Age", "finaloutcome")
+t_numeric_mtrx <- t_initial_mtrx[, test_queries]
+for (f in colnames(t_numeric_mtrx)) {
+  t_numeric_mtrx[[f]] <- as.numeric(t_numeric_mtrx[[f]])
+}
+
+corheat <- ggstatsplot::ggcorrmat(t_numeric_mtrx, label = TRUE, cor.vars = test_queries)
+corheat
+```
+
+It turns out they are even more tightly correlated in this subset than in
+the full dataset.
+
+## A series of linear regression models
+
+Given the above, I know that I should not include some groups of
+factors in a model together, but I want to get a feel for which
+factor combinations are most/least informative with respect to final
+outcome.
+
+```{r}
+t_sea_extracted_regression <- extract_linear_regression(
+  t_regression_numeric, query = "Therapeutic_Outcome_Final",
+  factors = c("Sex", "Ethnicity", "Age"),
+  excel = "excel/t_regression_table_t_sea.xlsx")
+pp(file = "images/tc_regression_t_sea.png")
+t_sea_extracted_regression[["forest"]]
+dev.off()
+t_sea_extracted_regression[["forest"]]
+t_sea_extracted_regression[["summary"]]
+
+t_sa_extracted_regression <- extract_linear_regression(
+  t_regression_numeric, query = "Therapeutic_Outcome_Final",
+  factors = c("Sex", "Age"),
+  excel = "excel/t_regression_table_t_sa.xlsx")
+pp(file = "images/t_regression_sa.png")
+t_sa_extracted_regression[["forest"]]
+dev.off()
+t_sa_extracted_regression[["forest"]]
+t_sa_extracted_regression[["summary"]]
+
+t_se_extracted_regression <- extract_linear_regression(
+  t_regression_numeric, query = "Therapeutic_Outcome_Final",
+  factors = c("Sex", "Ethnicity"),
+  excel = "excel/t_regression_table_se.xlsx")
+pp(file = "images/t_regression_se.png")
+t_se_extracted_regression[["forest"]]
+dev.off()
+t_se_extracted_regression[["forest"]]
+t_se_extracted_regression[["summary"]]
+```
+
+# Global views of all cell types
 
 Now that those 'global' metrics are out of the way, lets look at some
 global metrics of the data following normalization; the most likely
@@ -254,23 +722,23 @@ tc_norm <- sm(normalize_expt(tc_type, transform = "log2", norm = "quant",
 
 tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
                     plot_title = "PCA - Cell type", size_column = "visitnumber")
-tc_pca$plot
+tc_pca
 tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
                    plot_title = "PCA - Cell type")
-tc_pca$plot
+tc_pca
 
 tc_pca_nosize <- plot_pca(tc_norm, plot_labels = FALSE)
-tc_pca_nosize$plot
+tc_pca_nosize
 
 write.csv(tc_pca$table, file = "excel/tc_donor_pca_coords.csv")
 tc_cf_norm <- set_expt_batches(tc_norm, fact = "visitnumber")
 tc_cf_corheat <- plot_corheat(tc_cf_norm, plot_title = "Heirarchical clustering:
          cell types")
-tc_cf_corheat$plot
+tc_cf_corheat
 
 tc_cf_disheat <- plot_disheat(tc_cf_norm, plot_title = "Heirarchical clustering:
          cell types")
-tc_cf_disheat$plot
+tc_cf_disheat
 ```
 
 ## Figure 1B: Transcriptomic profiles of primary innate cells
@@ -288,7 +756,7 @@ different from the innate immune cell types.
 fig1v2_norm <- normalize_expt(tc_type, transform = "log2",
                               convert = "cpm", norm = "quant", filter = TRUE)
 fig1v2_pca <- plot_pca(fig1v2_norm, cis = FALSE)
-fig1v2_pca$plot
+fig1v2_pca
 ```
 
 # Compare samples by clinic
@@ -327,8 +795,10 @@ tc_biopsies_nb_pca <- plot_pca(tc_biopsies_nb)
 pp(file = "figures/figure3E_biopsies.svg")
 tc_biopsies_nb_pca$plot
 dev.off()
-tc_biopsies_nb_pca$plot
+tc_biopsies_nb_pca
 ```
+
+I worry that we rely too heavily on PCA.
 
 ## Patient Race and clinic?
 
@@ -715,6 +1185,7 @@ clinical_scores[["highest"]][,"Comp.4"]
 test_factors <- c("visitnumber", "typeofcells", "finaloutcome",
                   "clinic", "sex", "etnia")
 clinical_varpart <- simple_varpart(tc_clinical, factors = test_factors)
+clinical_varpart
 ```
 
 ## Iterative SVA followed by PCA
@@ -802,17 +1273,112 @@ eighth_info$anova_neglogp_heatmap
 
 # Variance Partition
 
+variancePartition (@hoffmanVariancePartitionInterpretingDrivers2016)
+provides a nice toolbox of methods to examine the relationship between
+various metadata factors in a dataset with respect to the variance
+observed in the dataset's expression.  We usually use it as a quick
+way to see the relative likelihood that a differential expression
+of various factors will provide useful/helpful output.
+
 ```{r}
 ## Mostly running twice to make sure that reordering the factors does not affect the end result.
 tc_varpart <- simple_varpart(
-  tc_clinical, factors = c("visitnumber", "typeofcells",
-                           "finaloutcome", "clinic", "sex", "etnia"))
+  tc_clinical_nobiop, factors = c("visitnumber", "typeofcells",
+                                  "finaloutcome", "clinic", "sex", "etnia"))
 tc_varpart
 
 tc_varpartv2 <- simple_varpart(
-  tc_clinical, factors = c("donor", "visitnumber", "typeofcells",
-                           "finaloutcome"))
+  tc_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells",
+                                  "finaloutcome"))
+pp(file = "images/tc_donor_visit_type_finaloutcome_varpart.pdf")
 tc_varpartv2
+dev.off()
+tc_varpartv2
+
+tc_varpartv3 <- simple_varpart(
+  tc_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells"))
+pp(file = "images/tc_donor_visit_type_varpart.pdf")
+tc_varpartv3
+dev.off()
+tc_varpartv3
+
+tc_varpartv4 <- simple_varpart(
+  tc_clinical_nobiop, factors = c("finaloutcome", "sex", "Ethnicity"))
+pp(file = "images/tc_final_sex_ethnicity_varpart.pdf")
+tc_varpartv4
+dev.off()
+tc_varpartv4
+
+t_varpartv3 <- simple_varpart(
+  t_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells"))
+pp(file = "images/t_donor_visit_type_varpart.pdf")
+t_varpartv3
+dev.off()
+t_varpartv3
+
+c_varpartv3 <- simple_varpart(
+  c_clinical, factors = c("donor", "visitnumber", "typeofcells"))
+pp(file = "images/c_donor_visit_type_varpart.pdf")
+c_varpartv3
+dev.off()
+c_varpartv3
+```
+
+## Some factors of later interest
+
+Maria Adelaida asked about using variancePartition to query a few
+other factors in the Cali, Tumaco, and both datasets.  These factors
+include: Sex, Age, Ethnicity, Clinic; and potentially Adherence, time
+of evolution, and previous diagnosis.
+
+I am not sure if those factors are already in the expressionset
+metadata, but if not we can certainly bring them back.  In the
+following block I will therefore repeat a simple variancePartition
+analysis using first the full dataset (Tumaco+Cali), then each clinic
+alone; in each instance I will do one round with sex, ethnicity, age,
+and clinic followed by the same and finaloutcome (as a reference point
+to something we are already looking at).
+
+```{r}
+table(pData(tc_clinical_nobiop)$typeofcells)
+table(pData(t_clinical_nobiop)$typeofcells)
+table(pData(c_clinical_nobiop)$typeofcells)
+
+tc_fun_varpart <- simple_varpart(tc_clinical_nobiop,
+                                 factors = c("sex", "etnia", "Age", "clinic"))
+pp(file = "images/tc_fun_varpart.pdf")
+tc_fun_varpart
+dev.off()
+tc_fun_varpart
+tc_fun_outcome_varpart <- simple_varpart(tc_clinical_nobiop,
+                                         factors = c("sex", "etnia", "Age", "clinic", "finaloutcome"))
+pp(file = "images/tc_fun_outcome_varpart.pdf")
+tc_fun_outcome_varpart
+dev.off()
+tc_fun_outcome_varpart
+c_fun_varpart <- simple_varpart(c_clinical_nobiop,
+                                factors = c("sex", "etnia", "Age"))
+pp(file = "images/c_fun_varpart.pdf")
+c_fun_varpart
+dev.off()
+c_fun_outcome_varpart <- simple_varpart(c_clinical_nobiop,
+                                        factors = c("sex", "etnia", "Age", "finaloutcome"))
+pp(file = "images/c_fun_outcome_varpart.pdf")
+c_fun_outcome_varpart
+dev.off()
+c_fun_outcome_varpart
+t_fun_varpart <- simple_varpart(t_clinical_nobiop,
+                                factors = c("sex", "etnia", "Age"))
+pp(file = "images/t_fun_varpart.pdf")
+t_fun_varpart
+dev.off()
+t_fun_varpart
+t_fun_outcome_varpart <- simple_varpart(t_clinical_nobiop,
+                                        factors = c("sex", "etnia", "Age", "finaloutcome"))
+pp(file = "images/t_fun_outcome_varpart.pdf")
+t_fun_outcome_varpart
+dev.off()
+t_fun_outcome_varpart
 ```
 
 ## Visualize: Repeat plots using only the Tumaco samples
@@ -1122,25 +1688,73 @@ see what new patterns emerge.
 
 Now let us shift the view slightly to focus on changes observed over time.
 
+I have a note from Maria Adelaida that she would like to flesh this
+section out with some more pdf versions of various pre/post SVA plots.
+If I understood/wrote down correctly her goals:
+
+1.  3 visits, all cell types.
+2.  3 visits, all clinical cell types (e.g. no biopsies), only Tumaco
+3.  #1, #2 after sva
+4.  Repeat the only C/F by visit with/out SVA and make pretty versions.
+
 ```{r}
 tc_visit_expt <- set_expt_conditions(tc_clinical, fact = "visitnumber") %>%
   set_expt_batches(fact = "finaloutcome") %>%
   set_expt_colors(color_choices[["visit2"]])
-tc_visit_norm <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2", convert = "cpm",
-                                batch = "svaseq")
-plot_pca(tc_visit_norm)$plot
+tc_visit_norm <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2",
+                                convert = "cpm", norm = "quant")
+tc_visit_norm_pca <- plot_pca(tc_visit_norm)
+pp(file = "images/tc_visit_norm_alltypes.pdf")
+tc_visit_norm_pca$plot
+dev.off()
+tc_visit_norm_pca
 
-t_visit_expt <- set_expt_conditions(t_clinical, fact = "visitnumber") %>%
+tc_visit_nb <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2",
+                              convert = "cpm", batch = "svaseq")
+tc_visit_nb_pca <- plot_pca(tc_visit_nb)
+pp(file = "images/tc_visit_sva_alltypes.pdf")
+tc_visit_nb_pca$plot
+dev.off()
+tc_visit_nb_pca
+
+##  Repeat for only Tumaco
+t_visit_expt <- subset_expt(tc_clinical, subset = "clinic=='tumaco'") %>%
+  set_expt_conditions(fact = "visitnumber") %>%
   set_expt_batches(fact = "finaloutcome") %>%
-  subset_expt(subset="typeofcells!='biopsy'")
+  set_expt_colors(color_choices[["visit2"]])
+t_visit_norm <- normalize_expt(t_visit_expt, filter = TRUE, transform = "log2",
+                                convert = "cpm", norm = "quant")
+t_visit_norm_pca <- plot_pca(t_visit_norm)
+pp(file = "images/t_visit_norm_alltypes.pdf")
+t_visit_norm_pca$plot
+dev.off()
+t_visit_norm_pca
 
-t_visit_norm <- normalize_expt(t_visit_expt, transform = "log2", convert = "cpm",
-                             norm = "quant", filter = TRUE)
-plot_pca(t_visit_norm)$plot
-t_visit_nb <- normalize_expt(t_visit_expt, transform = "log2", convert = "cpm",
-                             filter = TRUE, batch = "svaseq")
+t_visit_nb <- normalize_expt(t_visit_expt, filter = TRUE, transform = "log2",
+                             convert = "cpm", batch = "svaseq")
 t_visit_nb_pca <- plot_pca(t_visit_nb)
+pp(file = "images/t_visit_sva_alltypes.pdf")
 t_visit_nb_pca$plot
+dev.off()
+t_visit_nb_pca
+
+## Finally, limit to only the clinical celltypes
+t_visit_clinical_expt <- subset_expt(t_visit_expt, subset = "typeofcells!='biopsy'")
+t_visit_clinical_norm <- normalize_expt(t_visit_clinical_expt, filter = TRUE, transform = "log2",
+                                        convert = "cpm", norm = "quant")
+t_visit_clinical_norm_pca <- plot_pca(t_visit_clinical_norm)
+pp(file = "images/t_visit_clinical_norm_alltypes.pdf")
+t_visit_clinical_norm_pca$plot
+dev.off()
+t_visit_clinical_norm_pca
+
+t_visit_clinical_nb <- normalize_expt(t_visit_clinical_expt, filter = TRUE,
+                                      transform = "log2", convert = "cpm", batch = "svaseq")
+t_visit_clinical_nb_pca <- plot_pca(t_visit_clinical_nb)
+pp(file = "images/t_visit_nobiop_sva_alltypes.pdf")
+t_visit_clinical_nb_pca$plot
+dev.off()
+t_visit_clinical_nb_pca
 ```
 
 When looking at all cell types, it is quite difficult to see
@@ -1154,36 +1768,64 @@ think the following block will suggest pretty strongly that this was
 not true.
 
 ```{r}
+tv1_samples <- set_expt_batches(tv1_samples, fact = "typeofcells")
 tv1_norm <- normalize_expt(tv1_samples, transform = "log2", convert = "cpm",
                           norm = "quant", filter = TRUE)
-plot_pca(tv1_norm)$plot
+tv1_pca <- plot_pca(tv1_norm)
+pp(file = "images/tv1_pca.pdf")
+tv1_pca
+dev.off()
+tv1_pca$plot
+
 tv1_nb <- normalize_expt(tv1_samples, transform = "log2", convert = "cpm",
-                        filter = TRUE, batch = "svaseq")
-plot_pca(tv1_nb, plot_labels = FALSE)$plot
+                         filter = TRUE, batch = "svaseq")
+tv1_nb_pca <- plot_pca(tv1_nb, plot_labels = FALSE)
+pp(file = "images/tv1_sva_pca.pdf")
+tv1_nb_pca$plot
+dev.off()
+tv1_nb_pca
 ```
 
 ## Visualize: C/F for only the visit 2 samples
 
 ```{r}
-tv2_clinical <- subset_expt(tv2_samples, subset = "visitnumber=='2'") %>%
-  set_expt_conditions(fact = "finaloutcome") %>%
-  set_expt_batches(fact = "typeofcells")
+tv2_samples <- set_expt_batches(tv2_samples, fact = "typeofcells")
+tv2_norm <- normalize_expt(tv2_samples, transform = "log2", convert = "cpm",
+                          norm = "quant", filter = TRUE)
+tv2_pca <- plot_pca(tv2_norm)
+pp(file = "images/tv2_pca.pdf")
+tv2_pca
+dev.off()
+tv2_pca$plot
 
-tv2_nb <- normalize_expt(tv2_clinical, transform = "log2", convert = "cpm", norm = "quant",
-                        filter = TRUE, batch = "svaseq")
-plot_pca(tv2_nb, plot_labels = FALSE)$plot
+tv2_nb <- normalize_expt(tv2_samples, transform = "log2", convert = "cpm",
+                         filter = TRUE, batch = "svaseq")
+tv2_nb_pca <- plot_pca(tv2_nb, plot_labels = FALSE)
+pp(file = "images/tv2_sva_pca.pdf")
+tv2_nb_pca$plot
+dev.off()
+tv2_nb_pca
 ```
 
 ## Visualize: C/F for only the visit 3 samples
 
 ```{r}
-tv3_clinical <- subset_expt(tv3_samples, subset = "visitnumber=='3'") %>%
-  set_expt_conditions(fact = "finaloutcome") %>%
-  set_expt_batches(fact = "typeofcells")
+tv3_samples <- set_expt_batches(tv3_samples, fact = "typeofcells")
+tv3_norm <- normalize_expt(tv3_samples, transform = "log2", convert = "cpm",
+                          norm = "quant", filter = TRUE)
+tv3_pca <- plot_pca(tv3_norm)
+pp(file = "images/tv3_pca.pdf")
+tv3_pca
+dev.off()
+tv3_pca$plot
 
-tv3_nb <- normalize_expt(tv3_clinical, transform = "log2", convert = "cpm", norm = "quant",
-                        filter = TRUE, batch = "svaseq")
-plot_pca(tv3_nb, plot_labels = FALSE)$plot
+tv3_nb <- normalize_expt(tv3_samples, transform = "log2", convert = "cpm",
+                         filter = TRUE, batch = "svaseq")
+tv3_nb_pca <- plot_pca(tv3_nb, plot_labels = FALSE)
+pp(file = "images/tv3_sva_pca.pdf")
+tv3_nb_pca$plot
+dev.off()
+tv3_nb_pca
 ```
 
 ### Visualize: Comparing 3 visits by cell type
@@ -1193,11 +1835,20 @@ patterns with respect to visit and clinical outcome.
 
 #### Monocytes across visits
 
+In the following few blocks we are coloring the samples by visit and
+final outcome.  We are also separating the three primary celltypes of
+interest.  If I understand correctly, Maria Adelaida has an interest
+in a nice version of each of these 6 plots (normalized pca
+before/after SVA for each celltype).
+
 ```{r}
 t_visitcf_monocyte_norm <- normalize_expt(t_visitcf_monocyte, norm = "quant", convert = "cpm",
                                 transform = "log2", filter = TRUE)
 t_visitcf_monocyte_pca <- plot_pca(t_visitcf_monocyte_norm, plot_labels = FALSE)
+pp(file = "images/t_monocyte_visitcf_norm_pca.pdf")
 t_visitcf_monocyte_pca$plot
+dev.off()
+t_visitcf_monocyte_pca
 
 t_visitcf_monocyte_disheat <- plot_disheat(t_visitcf_monocyte_norm)
 t_visitcf_monocyte_disheat$plot
@@ -1205,16 +1856,25 @@ t_visitcf_monocyte_disheat$plot
 t_visitcf_monocyte_nb <- normalize_expt(t_visitcf_monocyte, convert = "cpm",
                                     transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_monocyte_nb_pca <- plot_pca(t_visitcf_monocyte_nb, plot_labels = FALSE)
+pp(file = "images/t_monocyte_visitcf_sva_pca.pdf")
 t_visitcf_monocyte_nb_pca$plot
+dev.off()
+t_visitcf_monocyte_nb_pca
 ```
 
 #### Eosinophils across visits
+
+Repeat the above with Eosinophils, we should therefore have slightly
+fewer glyphs on the plot.
 
 ```{r}
 t_visitcf_eosinophil_norm <- normalize_expt(t_visitcf_eosinophil, norm = "quant", convert = "cpm",
                                 transform = "log2", filter = TRUE)
 t_visitcf_eosinophil_pca <- plot_pca(t_visitcf_eosinophil_norm, plot_labels = FALSE)
+pp(file = "images/t_eosinophil_visitcf_norm_pca.pdf")
 t_visitcf_eosinophil_pca$plot
+dev.off()
+t_visitcf_eosinophil_pca
 
 t_visitcf_eosinophil_disheat <- plot_disheat(t_visitcf_eosinophil_norm)
 t_visitcf_eosinophil_disheat$plot
@@ -1222,7 +1882,10 @@ t_visitcf_eosinophil_disheat$plot
 t_visitcf_eosinophil_nb <- normalize_expt(t_visitcf_eosinophil, convert = "cpm",
                                     transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_eosinophil_nb_pca <- plot_pca(t_visitcf_eosinophil_nb, plot_labels = FALSE)
+pp(file = "images/t_eosinophil_visitcf_sva_pca.pdf")
 t_visitcf_eosinophil_nb_pca$plot
+dev.off()
+t_visitcf_eosinophil_nb_pca
 ```
 
 #### Neutrophils across visits
@@ -1231,7 +1894,10 @@ t_visitcf_eosinophil_nb_pca$plot
 t_visitcf_neutrophil_norm <- normalize_expt(t_visitcf_neutrophil, norm = "quant", convert = "cpm",
                                 transform = "log2", filter = TRUE)
 t_visitcf_neutrophil_pca <- plot_pca(t_visitcf_neutrophil_norm, plot_labels = FALSE)
+pp(file = "images/t_neutrophil_visitcf_norm_pca.pdf")
 t_visitcf_neutrophil_pca$plot
+dev.off()
+t_visitcf_neutrophil_pca
 
 t_visitcf_neutrophil_disheat <- plot_disheat(t_visitcf_neutrophil_norm)
 t_visitcf_neutrophil_disheat$plot
@@ -1239,49 +1905,92 @@ t_visitcf_neutrophil_disheat$plot
 t_visitcf_neutrophil_nb <- normalize_expt(t_visitcf_neutrophil, convert = "cpm",
                                           transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_neutrophil_nb_pca <- plot_pca(t_visitcf_neutrophil_nb, plot_labels = FALSE)
+pp(file = "images/t_neutrophil_visitcf_sva_pca.pdf")
 t_visitcf_neutrophil_nb_pca$plot
+dev.off()
+t_visitcf_neutrophil_nb_pca
 ```
 
 #### Celltypes by visit, C/F batch: Monocytes
 
+We are backing off the granular view of visit and Fail/Cure in the
+following block and instead just considering the three visits.  This
+previously only considered the normalized result, now we wish to add
+the sva modified result and print out pdfs thereof.  Once again, we
+are repeating 3 times, once for each cell type.
+
 ```{r}
-t_visitcf_monocyte <- set_expt_conditions(t_visitcf_monocyte, prefix = "v",
-                                          fact = "visitnumber") %>%
+t_visit_monocyte <- set_expt_conditions(t_visitcf_monocyte, prefix = "v",
+                                        fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
-t_visitcf_monocyte_norm <- normalize_expt(t_visitcf_monocyte,
-                                          transform = "log2", convert = "cpm",
-                                          norm = "quant", filter = TRUE)
-t_visitcf_monocyte_pca <- plot_pca(t_visitcf_monocyte_norm, plot_labels = FALSE)
-t_visitcf_monocyte_pca$plot
+t_visit_monocyte_norm <- normalize_expt(t_visit_monocyte,
+                                        transform = "log2", convert = "cpm",
+                                        norm = "quant", filter = TRUE)
+
+t_visit_monocyte_norm_pca <- plot_pca(t_visit_monocyte_norm, plot_labels = FALSE)
+pp(file = "images/t_monocyte_visit_norm_pca.pdf")
+t_visit_monocyte_norm_pca$plot
+dev.off()
+t_visit_monocyte_norm_pca
+t_visitcf_monocyte_nb <- normalize_expt(t_visitcf_monocyte,
+                                        transform = "log2", convert = "cpm",
+                                        batch = "svaseq", filter = TRUE)
+t_visitcf_monocyte_nb_pca <- plot_pca(t_visitcf_monocyte_nb, plot_labels = FALSE)
+pp(file = "images/t_monocyte_visit_sva_pca.pdf")
+t_visitcf_monocyte_nb_pca$plot
+dev.off()
+t_visitcf_monocyte_nb_pca
 ```
 
 #### Celltypes by visit, C/F batch: Eosinophils
 
 ```{r}
-t_visitcf_eosinophil <- set_expt_conditions(t_visitcf_eosinophil, prefix = "v",
+t_visit_eosinophil <- set_expt_conditions(t_visitcf_eosinophil, prefix = "v",
                                             fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
-t_visitcf_eosinophil_norm <- normalize_expt(t_visitcf_eosinophil,
+t_visit_eosinophil_norm <- normalize_expt(t_visit_eosinophil,
                                           transform = "log2", convert = "cpm",
                                           norm = "quant", filter = TRUE)
-t_visitcf_eosinophil_pca <- plot_pca(t_visitcf_eosinophil_norm, plot_labels = FALSE)
-t_visitcf_eosinophil_pca$plot
+t_visit_eosinophil_norm_pca <- plot_pca(t_visit_eosinophil_norm, plot_labels = FALSE)
+pp(file = "images/t_eosinophil_visit_norm_pca.pdf")
+t_visit_eosinophil_norm_pca$plot
+dev.off()
+t_visit_eosinophil_norm_pca
+t_visit_eosinophil_nb <- normalize_expt(t_visit_eosinophil,
+                                        transform = "log2", convert = "cpm",
+                                        batch = "svaseq", filter = TRUE)
+t_visit_eosinophil_nb_pca <- plot_pca(t_visit_eosinophil_nb, plot_labels = FALSE)
+pp(file = "images/t_eosinophil_visit_sva_pca.pdf")
+t_visit_eosinophil_nb_pca$plot
+dev.off()
+t_visit_eosinophil_nb_pca
 ```
 
 #### Celltypes by visit, C/F batch: Neutrophils
 
 ```{r}
-t_visitcf_neutrophil <- set_expt_conditions(t_visitcf_neutrophil, prefix = "v",
-                                            fact = "visitnumber") %>%
+t_visit_neutrophil <- set_expt_conditions(t_visitcf_neutrophil, prefix = "v",
+                                          fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
-t_visitcf_neutrophil_norm <- normalize_expt(t_visitcf_neutrophil,
+t_visit_neutrophil_norm <- normalize_expt(t_visit_neutrophil,
                                           transform = "log2", convert = "cpm",
                                           norm = "quant", filter = TRUE)
-t_visitcf_neutrophil_pca <- plot_pca(t_visitcf_neutrophil_norm, plot_labels = FALSE)
-t_visitcf_neutrophil_pca$plot
+t_visit_neutrophil_norm_pca <- plot_pca(t_visit_neutrophil_norm, plot_labels = FALSE)
+pp(file = "images/t_neutrophil_visit_norm_pca.pdf")
+t_visit_neutrophil_norm_pca$plot
+dev.off()
+t_visit_neutrophil_norm_pca
+t_visit_neutrophil_nb <- normalize_expt(t_visit_neutrophil,
+                                        transform = "log2", convert = "cpm",
+                                        batch = "svaseq", filter = TRUE)
+t_visit_neutrophil_nb_pca <- plot_pca(t_visit_neutrophil_nb, plot_labels = FALSE)
+pp(file = "images/t_neutrophil_visit_sva_pca.pdf")
+t_visit_neutrophil_nb_pca$plot
+dev.off()
+t_visit_neutrophil_nb_pca
 ```
 
 # Persistence
@@ -1572,14 +2281,349 @@ ttt <- normalize_expt(external_species, transform = "log2", convert = "cpm", bat
 plot_pca(ttt)
 ```
 
+# Parasite distribution
+
+I am resurrecting some of the comparisons of the parasite transcriptome in the host data.
+
 ```{r}
-pander::pander(sessionInfo())
-message("This is hpgltools commit: ", get_git_commit())
-message("Saving to ", savefile)
-# tmp <- sm(saveme(filename = savefile))
+lp_cf <- set_expt_conditions(lp_expt, fact = "finaloutcome")
+
+table(pData(lp_cf)[["typeofcells"]])
+
+lp_cf_norm <- normalize_expt(lp_cf, transform = "log2", convert = "cpm",
+                             norm = "quant", filter = TRUE)
+lp_cf_sm <- plot_sm(lp_cf_norm)
+lp_cf_sm
+lp_cf_corheat <- plot_corheat(lp_cf_norm)
+lp_cf_corheat
+lp_cf_norm_pca <- plot_pca(lp_cf_norm)
+lp_cf_norm_pca
+
+lp_cf_nb <- normalize_expt(lp_cf, transform = "log2", convert = "cpm",
+                           batch = "svaseq", filter = "simple")
+lp_cf_nb_pca <- plot_pca(lp_cf_nb)
+lp_cf_nb_pca
 ```
 
+Note, the previous task includes visits 2/3 and multiple cell types
+and as a result is likely to include the most profoundly infected
+people (only those in whom we observe >30,000 reads and >3,000 genes
+of parasite reads.  Thus, even though it sort of looks like there
+_might_ be a C/F difference, the sva shows that to be a lie.
 
-```{r, eval=FALSE}
-tmp <- loadme(filename=savefile)
+Nonetheless, we can make this clearer by excluding the visits2/3
+and/or non-biopsies.
+
+```{r}
+lp_cf_biop <- subset_expt(lp_cf, subset = "typeofcells=='Biopsy'")
+
+lp_cf_biop_norm <- normalize_expt(lp_cf_biop, transform = "log2", convert = "cpm",
+                                  norm = "quant", filter = TRUE)
+lp_cf_biop_sm <- plot_sm(lp_cf_biop_norm)
+lp_cf_biop_sm
+lp_cf_biop_corheat <- plot_corheat(lp_cf_biop_norm)
+lp_cf_biop_corheat
+lp_cf_biop_norm_pca <- plot_pca(lp_cf_biop_norm)
+lp_cf_biop_norm_pca
+
+lp_cf_biop_nb <- normalize_expt(lp_cf_biop, transform = "log2", convert = "cpm",
+                                batch = "svaseq", filter = "simple")
+lp_cf_biop_nb_pca <- plot_pca(lp_cf_biop_nb)
+lp_cf_biop_nb_pca
 ```
+
+# Examining PCs and SVs vs. the metadata: SV loadings
+
+This is coming out of the 09varcor_regression document and was
+initially performed by Theresa.  If this works well and is sufficient,
+I might remove that document and therefore have that much less stuff
+to check on for correctness.
+
+<span style="color:#006400">
+Note from atb: I need to make a few changes to this section, primarily
+we need to be able to automatically generate the tables of
+f-statistics; in case the data changes (which it did since Theresa
+performed this, one sample was removed I think).  With that caveat,
+the following is coming directly out of her SVA_V3_Tumaco document.  I
+also would like to compare the SV-fstats to similar metrics I took of
+PCs vs. metadata factors.  My assumption (if I understand the math in
+sva at all) is that they should largely complement/agree with each
+other.
+</span>
+
+We would like to know what the heck SVA is actually correcting for
+when we do an SVA correction. Are there any metadatas that these SV’s
+are correlated with?
+
+To do this, I will run SVA to get the SV loadings. I will then do
+something akin to PC loadings analysis to see how these individual SVs
+(and combinatorial SVs) are associated with any
+
+I will use a computed F-statistic for this association to measure the
+between:within cluster variance in a model (and tell us if that factor
+is a “good” indicator of separation based on that sv loading).
+
+$$\begin{equation}
+F-statistic = \frac{TSS - RSS}{RSS}
+\end{equation}$$
+
+So for this, I will use a series of linear regressions which model
+each dimension of SVA as a function of the observed variables that
+describe the known underlying group structure (clinic, visit, patient,
+...)
+
+$$\begin{equation}
+\underbrace{X_i}_\text{dimension i of SVA} = \underbrace{B_0 + B_1
+celltype/visit/clinic/donor}_\text{underlying group structure}
+\end{equation}$$
+
+We can do this breakdown in a few ways to answer different questions
+which I will explore further below.
+
+We have decided the Cali samples don't offer a lot of extra
+information for us, and there is significant clinic batch effect, so
+we are going to remove the Cali samples and evaluate the SV loadings.
+
+The first thing to do is the actual SVA to get the loadings.
+
+<span style="color:#006400">
+I may have changed a few of Theresa's variable names when I first
+copy/pasted this document together without taking note of the
+modification; but I am reasonably certain that the intended data
+structures are the same.
+</span>
+
+```{r}
+clinic_sva <- normalize_expt(t_clinical, filter = TRUE)
+pheno <- pData(clinic_sva)
+edata <- exprs(clinic_sva)
+
+mod <- model.matrix(~as.factor(finaloutcome), data = pheno)
+mod0 <- model.matrix(~1, data = pheno)
+
+svobj <- sva::svaseq(edata, mod, mod0)
+```
+
+### SV 1
+
+SVA found 4 SV’s. We can plot them individually to visually inspect
+their separation w.r.t some metadata.
+
+```{r}
+svs <- as.data.frame(svobj$sv)
+colnames(svs) <- paste0("sv_", seq(1:4))
+svs <- cbind(svs, pheno)
+
+sv1_typeofcells <- ggplot(svs, aes(y = sv_1, x = typeofcells, fill = typeofcells)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Type of Cells") +
+  ylab("SV 1")  +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sv1_visit <-  ggplot(svs, aes(y = sv_1, x = visitnumber, fill = visitnumber)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Visit Number") +
+  ylab("SV 1")  +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sv1_donor <- ggplot(svs, aes(y = sv_1, x = donor, fill = donor)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Donor") +
+  ylab("SV 1")  +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 0.5))
+
+sv1_typeofcells
+sv1_visit
+sv1_donor
+##grid.arrange(sv1_typeofcells, sv1_visit, sv1_donor, nrow = 2)
+```
+
+### SV2
+
+```{r}
+sv2_typeofcells <- ggplot(svs, aes(y = sv_2, x = typeofcells, fill = typeofcells)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Type of Cells") +
+  ylab("SV 2")  +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sv2_visit <-  ggplot(svs, aes(y = sv_2, x = visitnumber, fill = visitnumber)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Visit Number") +
+  ylab("SV 2")  +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sv2_donor <- ggplot(svs, aes(y = sv_2, x = donor, fill = donor)) +
+  geom_violin() +
+  geom_point(alpha = 0.75) +
+  xlab("Donor") +
+  ylab("SV 2")  +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 0.5))
+
+
+#grid.arrange(sv2_typeofcells, sv2_visit, sv2_donor, nrow = 2)
+sv2_typeofcells
+sv2_visit
+sv2_donor
+```
+
+<span style="color:#006400">
+I spent a little time to simplify and try to make the reasoning above
+a little more robust so that I can regenerate Theresa's xlsx table of
+f-statistics as well as add a little more information.  The following
+block attempts this...
+</span>
+
+Najib correctly pointed out that I left off clinic in this first invocation.
+
+```{r}
+queries <- c("typeofcells", "visitnumber", "clinic", "donor")
+tc_clinical_fpstats <- svpc_fstats(tc_clinical, num_pcs = 5, queries = queries)
+queries <- c("typeofcells", "visitnumber", "donor")
+t_clinical_fpstats <- svpc_fstats(t_clinical, num_pcs = 5, queries = queries)
+c_clinical_fpstats <- svpc_fstats(c_clinical, num_pcs = 5, queries = queries)
+```
+
+# Send to an xlsx workbook
+
+<span style="color:#006400">
+I am going to add a little code in this section to send this to an
+xlsx file.  I might need to add a little bit of code as well because I
+am not certain that there is a document which contains this
+calculation for each data subset.
+
+I put together a quick function which writes the results of one of
+these analyses to a xlsx file, but it very much assumes a single
+dataset and is not easily amendable to multiple; therefore I will
+strip the code out here into a new function to repeat itself for the
+Tumaco/Cali/Both data for an arbitrary combination.
+</span>
+
+Query from Maria Adelaida: Perform a similar f/p statistics plot/xlsx
+table but using the first 5 PCs and SVs; perhaps also include the
+amount of variance remaining tale (I forget its name: residuals).
+
+But also do slightly different plots: 2 plots: 1 with PCs before SVA
+followed by the SVs, the 1 with SVs followed by post PCs.
+
+Given this, perform this task with: Clinic, Donor, Visit, Celltype
+using the clinical samples (no biopsies).
+
+```{r}
+write_combined_fpstats <- function(both = tc_clinical_fpstats, tumaco = t_clinical_fpstats,
+                                   cali = c_clinical_fpstats,
+                                   excel = "excel/combined_svpc_fstats.xlsx") {
+  xlsx <- init_xlsx(excel)
+  wb <- xlsx[["wb"]]
+  excel_basename <- xlsx[["basename"]]
+  do_excel <- TRUE
+  if (is.null(wb)) {
+    do_excel <- FALSE
+  }
+
+  current_row <- 1
+
+  pref <- both[["pre_f"]]
+  svf <- both[["sv_f"]]
+  postf <- both[["post_f"]]
+  ## Changing the rownames due to rbind rownames shenanigans.
+  rownames(pref) <- paste0("PrePC", seq_len(nrow(pref)))
+  rownames(postf) <- paste0("PostPC", seq_len(nrow(postf)))
+  allf <- rbind(pref, svf, postf)
+
+  prep <- both[["pre_p"]]
+  svp <- both[["sv_p"]]
+  postp <- both[["post_p"]]
+  rownames(prep) <- paste0("PrePC", seq_len(nrow(prep)))
+  rownames(postp) <- paste0("PostPC", seq_len(nrow(postp)))
+  allp <- rbind(prep, svp, postp)
+
+  fun_plot <- heatmap.3(as.matrix(allp), dendrogram = "none",
+                        scale = "none", trace = "none",
+                        Colv = FALSE, Rowv = FALSE)
+  image <- grDevices::recordPlot()
+
+  xlsx_result <- write_xlsx(data = allf, wb = wb, sheet = "Fvalues", start_row = current_row,
+                            title = "Both clinics, SVA and PC analysis, F-values")
+  xlsx_result <- write_xlsx(data = allp, wb = wb, sheet = "Pvalues", start_row = current_row,
+                            title = "Both clinics, SVA and PC analysis, P-values")
+  current_row <- xlsx_result[["end_row"]] + 2
+  try_result <- xlsx_insert_png(
+    a_plot = image, wb = wb, sheet = "Pvalues", start_col = ncol(allp) + 2)
+  image_files = c()
+  if (! "try-error" %in% class(try_result)) {
+    image_files = try_result[["filename"]]
+  }
+
+  pref <- tumaco[["pre_f"]]
+  svf <- tumaco[["sv_f"]]
+  postf <- tumaco[["post_f"]]
+  ## Changing the rownames due to rbind rownames shenanigans.
+  rownames(pref) <- paste0("PrePC", seq_len(nrow(pref)))
+  rownames(postf) <- paste0("PostPC", seq_len(nrow(postf)))
+  allf <- rbind(pref, svf, postf)
+
+  prep <- tumaco[["pre_p"]]
+  svp <- tumaco[["sv_p"]]
+  postp <- tumaco[["post_p"]]
+  rownames(prep) <- paste0("PrePC", seq_len(nrow(prep)))
+  rownames(postp) <- paste0("PostPC", seq_len(nrow(postp)))
+  allp <- rbind(prep, svp, postp)
+
+  xlsx_result <- write_xlsx(data = allf, wb = wb, sheet = "Fvalues", start_row = current_row,
+                            title = "Tumaco, SVA and PC analysis, F-values")
+  xlsx_result <- write_xlsx(data = allp, wb = wb, sheet = "Pvalues", start_row = current_row,
+                            title = "Tumaco, SVA and PC analysis, P-values")
+  current_row <- xlsx_result[["end_row"]] + 2
+
+  pref <- cali[["pre_f"]]
+  svf <- cali[["sv_f"]]
+  postf <- cali[["post_f"]]
+  ## Changing the rownames due to rbind rownames shenanigans.
+  rownames(pref) <- paste0("PrePC", seq_len(nrow(pref)))
+  rownames(postf) <- paste0("PostPC", seq_len(nrow(postf)))
+  allf <- rbind(pref, svf, postf)
+
+  prep <- cali[["pre_p"]]
+  svp <- cali[["sv_p"]]
+  postp <- cali[["post_p"]]
+  rownames(prep) <- paste0("PrePC", seq_len(nrow(prep)))
+  rownames(postp) <- paste0("PostPC", seq_len(nrow(postp)))
+  allp <- rbind(prep, svp, postp)
+
+  xlsx_result <- write_xlsx(data = allf, wb = wb, sheet = "Fvalues", start_row = current_row,
+                            title = "Cali, SVA and PC analysis, F-values")
+  xlsx_result <- write_xlsx(data = allp, sheet = "Pvalues", wb = wb, start_row = current_row,
+                            title = "Cali, SVA and PC analysis, P-values")
+  current_row <- xlsx_result[["end_row"]] + 2
+
+  excel_ret <- try(openxlsx::saveWorkbook(wb, excel, overwrite = TRUE))
+  removed <- try(suppressWarnings(file.remove(image_files)), silent = TRUE)
+}
+
+clinical_fpstats <- write_combined_fpstats(
+  both = tc_clinical_fpstats, tumaco = t_clinical_fpstats, cali = c_clinical_fpstats,
+  excel = glue("excel/clinical_fpstats-v{ver}.xlsx"))
+```
+
+The F-stat resulting from an anova for the model sv ~ metadata_factor
+shows that the main thing we are correcting for with an SVA correction
+(with cure/fail as the model factor) is the cell type. The factor
+donor contributes the next highest separation, with clinic falling in
+third. the visit contributes essentially no variance in this data,
+which we knew from the DE results.
+
+# Bibliography

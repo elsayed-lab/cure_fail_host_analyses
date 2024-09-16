@@ -1,7 +1,8 @@
 ---
-title: "TMRC3 202308: Creating Data Structures"
+title: "TMRC3 202308: Preprocessing"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
+bibliography: atb.bib
 output:
  html_document:
   code_download: true
@@ -57,6 +58,12 @@ data_structures <- c()
 
 # Changelog
 
+* 202406: Adding a neat experiment from the Scott lab which I had
+  sitting in my tree but somehow forgot about
+  ((@fariasamorimMultiomicProfilingCutaneous2023), which seems to me a
+  fascinating line of inquiry following
+  (@amorimVariableGeneExpression2019); the second of which I attempted
+  to explicitly compare).
 * 202308: Moved preprocessing material from the datastructures file to here.
 
 # Introduction
@@ -66,10 +73,11 @@ process the 'raw' data.
 
 # Sequence preprocessing
 
-All of the preprocessing tasks were performed with CYOA and included
+All of the preprocessing tasks were performed with CYOA (@ElsayedlabCYOA) and included
 the following:
 
-1. All samples were trimmed with trimomatic using options to remove
+1. All samples were trimmed with trimomatic
+   (@bolgerTrimmomaticFlexibleTrimmer2014a) using options to remove
    adapters using a supplemented copy of the default adapter database
    (ILLUMINACLIP:2:30:10:2:keepBothReads), reads with fewer than 40
    nucleotides remaining were discarded (MINLEN:40), and a mean quality
@@ -78,34 +86,51 @@ the following:
    properly paired were used for the tasks that follow.  The generated
    scripts for each sample which performed this trimming have the prefix
    ‘05trim’.
-2. Reads were passed to fastqc using the default parameters to query
-   read quality, remaining adapter content, and as an initial survey for
-   contaminants.  The generated scripts which performed this have the
-   prefix ‘06fastqc’
-3. Every sample was passed to kraken2 against its comprehensive
-   ‘standard’ and ‘virus’ databases, updated 2021/06 in order to query
-   for putative contaminants and potentially interesting viral
-   sequences.  The scripts which performed this have the prefix
-   ‘11kraken’.
-4. Samples were passed to hisat2 against the hg38 release 100 human
-   genome with the default options as well as the Leishmania panamensis
-   MHOM/COL release 46 in serial.  The scripts which performed these
-   operations have the prefixes ‘15hisat2_hg38_100’ and
-   ‘15hisat2_lpanamensis_v46’ respectively.
+2. Reads were passed to fastqc (@andrewsFastQCQualityControl) using
+   the default parameters to query read quality, remaining adapter
+   content, and as an initial survey for contaminants.  The generated
+   scripts which performed this have the prefix ‘06fastqc’
+3. Every sample was passed to kraken2 (@luMetagenomeAnalysisUsing2022)
+   against its comprehensive ‘standard’ and ‘virus’ databases, updated
+   2021/06 in order to query for putative contaminants and potentially
+   interesting viral sequences.  The scripts which performed this have
+   the prefix ‘11kraken’.
+4. Samples were passed to hisat2 (@kimGraphbasedGenomeAlignment2019)
+   against the hg38 release 100 human genome (@HomoSapiensEnsembl)
+   with the default options as well as the Leishmania panamensis
+   MHOM/COL release 46
+   (@shanmugasundramTriTrypDBIntegratedFunctional2023) in serial. The
+   scripts which performed these operations have the prefixes
+   ‘15hisat2_hg38_100’ and ‘15hisat2_lpanamensis_v46’ respectively.
 5. The resulting alignments were converted to the binary, sorted,
-   compressed, and indexed format via samtools.  Additional filters were
+   compressed, and indexed format via samtools
+   (@bonfieldHTSlibLibraryReading2021).  Additional filters were
    performed to extract only the non-variant alignments .  The scripts
    which performed this have the prefix ‘19s2b_{genome}’.
 6. These were cross referenced against the relevant feature databases in
-   order to generate count tables by gene via htseq.  These scripts have
+   order to generate count tables by gene via htseq
+   (@putriAnalysingHighthroughputSequencing2022).  These scripts have
    the prefix ‘21hts’.
-7. Each sample was passed to salmon against the transcript databases for
-   hg38 release 100, L. panamensis release 46, and a concatenation of
-   the two.  These scripts have the suffix ‘30sal_{genome}’.
+7. Each sample was passed to salmon (@patroSalmonProvidesFast2017)
+   against the transcript databases for hg38 release 100,
+   L. panamensis release 46, and a concatenation of the two.  These
+   scripts have the suffix ‘30sal_{genome}’.
 8. A regular expression search was performed for the observed set of
    spliced leader sequences.  The sequence ‘AGTTTCTGTACTTTATTGG’ rather
    than the entire SL sequence was searched to avoid potential SL
-   variants.  The relevant scripts have the prefix ‘50slsearch’.
+   variants.  The relevant scripts have the prefix ‘50slsearch’.  I
+   later set up a fastp-based (@chenFastpUltrafastAllinone2018)
+   search, but I do not think it is included.
+9. When sufficient coverage was observed against the parasite,
+   freebayes (@garrisonHaplotypebasedVariantDetection2012) was used to
+   quantify variants vs. the reference genome and infer the most
+   likely parasite subtype.
+
+(if anyone ever reads this (no one will ever read this), can you tell
+me how in the flying hell the fancy single quotes appeared in my text
+document?  I am writing this in emacs using markdown-mode and when I
+am typing I see normal person quotes, but when I save it.... oooohhh I
+added a text-mode hook and forgot it, I think?)
 
 Given the fact that these tasks were performed over the course of 4
 years, during which time we changed sequencing platforms and
@@ -341,3 +366,138 @@ salmon quant -i /cbcbhomes/abelew/libraries/genome/indexes/hg38_100_salmon_index
   -o outputs/salmon_hg38_100 \
   2>outputs/salmon_hg38_100/salmon.err 1>outputs/salmon_hg38_100/salmon.out
 ```
+
+# Preprocessing data from Dr. Scott's lab
+
+One potentially obvious comparison I neglected to make was against a
+newer data set from the Scott lab.  (hmm zotero cannot seem to suck in
+the author names!?  Did science somehow sanitize the pdf or is zotero
+just being a doofus?  Nope it is definitely science, I asked zotero to
+index a fresh copy I downloaded from pubmed and it worked fine, that
+sucks, I kind of wish we would collectively refuse to engage with the
+for-profit journals.)  (@amorimVariableGeneExpression2019)
+
+In any event, the bioproject accession for this experiment is:
+PRJNA525604 which is handy for me, because cyoa has a target named
+'sradownload' which will, if it sees a PRJNA, do a little
+web-scraping, download the metadata.csv from SRA run finder and then
+download the data for every run into separate directories.
+
+I have since started (but not finished) the implementation of a
+--iterate target which will do what it says on the tin: iterate over
+every directory in a tree and invoke the same pipeline on it; but
+until I finish that, bash for loops for everyone!
+
+Here is what I did:
+
+```{bash, eval=FALSE}
+mkdir -p preprocessing/PRJNA525604/
+module add cyoa
+cd preprocessing/PRJNA525604
+start=$(pwd)
+cyoa --method sra --input PRJNA525604
+## wait a while, I got a coffee! and listened to the first song from Olarfur Arnaulds via Cercle:
+## https://www.youtube.com/watch?v=bMCiAKNUpTY
+## I then realized my script has an error where it leaves the job log
+## for this, it created another preprocessing directory with the log.
+
+## Run the processing pipeling
+for i in $(/bin/ls -d SRR*); do
+    cd $i
+    cyoa --method prnaseq --species hg38_11 \
+         --input $(/bin/ls *.fastq.gz | tr '\n' ':')
+    cd $start
+done
+## The Process_RNASeq target (prna) handles all the stuff above.
+```
+
+The scott lab followed this work up with an examination of the
+interaction between microbial buren of the skin and its connection to
+increased unpredictability in clinical outcome as well as increased
+inflammation during
+infection (@fariasamorimMultiomicProfilingCutaneous2023).  I
+completely missed this paper until quite recently (202404); in
+addition, as I was finishing my quick first-pass read through, I found
+the bioproject accession, and upon reading the metadata at SRA
+realized they also followed that work up with another piece of
+intriguing work (@sacramentoCCR5PromotesMigration2024).
+
+So, with that in mind:
+
+```{bash, eval=FALSE}
+ac=PRJNA885131
+mkdir -p preprocessing/${ac}
+module add cyoa/202404
+cd preprocessing/${ac}
+start=$(pwd)
+cyoa --method sra --input $ac
+ac=PRJNA682985
+mkdir -p preprocessing/${ac}
+cd preprocessing/${ac}
+start=$(pwd)
+cyoa --method sra --input $ac
+
+## This set of samples is not paired ended
+for i in $(/bin/ls -d SRR*); do
+    cd $i
+    cyoa --method prnaseq --species hg38_111 \
+         --input $(/bin/ls *.fastq.gz)
+    cd $start
+done
+## Note, I only asked it to do hg38 for now, but I could/should change it to
+## hg38_11:lbraziliensis_2904_v46:saureus_8325
+## once I verify those are the appropriate genomes -- and I should
+## probably grab fresh copies, I haven't updated them in a while.
+```
+
+Oh yeah, my Staphylococcus assembly is stupidly old, I cannot even
+tell where I downloaded it (oh, I checked the fasta file, it is
+current, I just manually downloaded everything like a doofus and it is
+hard to tell the version)  I am just going to redownload it via cyoa
+so I have the full accession on hand:
+
+```{bash, eval=FALSE}
+cd ~/libraries/genome/genbank
+cyoa --method ncbidownload --input GCF_000013425
+## --download downloads whatever ncbi accession I feed it, maybe I
+## should change that to something like --ncbidown (I did!) and make one for
+## ensembl and microbesonline and friends.  Thing is, I like having an
+## archive of the gbk file so I can later extract stuff, ensembl/etc
+## do not give me that, so it is often easier to just download
+## manually, but then again, if I add it to cyoa I do not have to
+## scroll around and accidently download some rando chromosome instead
+## of the full assembly; and I can add a year or release ID and have
+## it go to the appropriate archive server.  yeah, I like that.
+## maybe I should change --input to --accession for stuff like this?
+ls -ltr
+ln -s GCF_000013425.gbff saureus_8325.gbk
+cyoa --method gb2gff --input saureus_8325.gbk
+ls -ltr
+mv saureus_8325.fsa ../fasta/
+mv saureus_8325_all.gff ../gff/saureus_8325.gff
+mv saureus_8325.faa ../../amino_acid/
+mv saureus_8325.ffn ../../CDS/fasta/
+mv saureus_8325_cds.gff ../../CDS/fasta/saureus_8325.gff
+mv saureus_8325_interCDS.gff ../../interCDS/gff/saureus_8325.gff
+mv saureus_8325_rrna.gff ../../rRNA/gff/saureus_8325.gff
+mv saureus_8325_rrna.fasta ../../rRNA/fasta/saureus_8325.gasta
+cd ../fasta
+cyoa --method indexhisat --species saureus_8325 \
+     --input saureus_8325.fsa \
+     --genome saureus_8325
+
+```
+
+My favorite part of the above: I can provide the csv downloaded from
+SRA to my hpgltools::gather_preprocessing_metadata() function along
+with the root directory of the downloaded data (preprocessing/$ac) and
+it will suck up all the numbers for me automagically, so I do not have
+to worry any more about collecting mapping statistics and potentially
+messing them up.  One caveat: the rRNA collector still sometimes grabs
+genomic numbers because I forgot to add the genome variable somewhere
+in the last version...  Nonetheless, I think that is awesome (I even
+made it smrt enough to handle a colon separated list of species).  Oh,
+this reminds me, I should check that my S. aureus and braziliensis
+assemblies are the same as the ones they used.
+
+# Bibliography

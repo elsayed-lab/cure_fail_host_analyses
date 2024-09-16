@@ -1,7 +1,8 @@
 ---
-title: "TMRC3 202301: Likelihood Ratio Tests and GSVA"
+title: "TMRC3 `r Sys.getenv('VERSION')`: Likelihood Ratio Tests and GSVA"
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
+bibliography: atb.bib
 output:
   html_document:
     code_download: true
@@ -9,7 +10,7 @@ output:
     fig_caption: true
     fig_height: 7
     fig_width: 7
-    highlight: default
+    highlight: zenburn
     keep_md: false
     mode: selfcontained
     number_sections: true
@@ -21,9 +22,18 @@ output:
       smooth_scroll: false
 ---
 
-<style>
+<style type="text/css">
 body .main-container {
-max-width: 1600px;
+  max-width: 1600px;
+}
+body, td {
+  font-size: 16px;
+}
+code.r{
+  font-size: 16px;
+}
+pre {
+  font-size: 16px
 }
 </style>
 
@@ -31,21 +41,17 @@ max-width: 1600px;
 library(hpgltools)
 library(dplyr)
 library(forcats)
-knitr::opts_knit$set(progress=TRUE,
-                     verbose=TRUE,
-                     width=90,
-                     echo=TRUE)
-knitr::opts_chunk$set(error=TRUE,
-                      fig.width=8,
-                      fig.height=8,
-                      dpi=96)
-old_options <- options(digits=4,
-                       stringsAsFactors=FALSE,
-                       knitr.duplicate.label="allow")
-ggplot2::theme_set(ggplot2::theme_bw(base_size=12))
+
+knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
+knitr::opts_chunk$set(
+  error = TRUE, fig.width = 8, fig.height = 8, fig.retina = 2,
+  out.width = "100%", dev = "png",
+  dev.args = list(png = list(type = "cairo-png")))
+old_options <- options(digits = 4, stringsAsFactors = FALSE, knitr.duplicate.label = "allow")
+ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
 previous_file <- ""
-rundate <- format(Sys.Date(), format="%Y%m%d")
+rundate <- format(Sys.Date(), format = "%Y%m%d")
 
 ##tmp <- try(sm(loadme(filename=gsub(pattern="\\.Rmd", replace="\\.rda\\.xz", x=previous_file))))
 rmd_file <- "04lrt_gsva.Rmd"
@@ -63,6 +69,13 @@ document.
 
 # LRT
 
+EdgeR (@mccarthyDifferentialExpressionAnalysis2012)  and DESeq2
+(@loveModeratedEstimationFold2014) both provide easily accessible LRT
+analyses.  If I remember correctly, the function I wrote to simplify
+these analyses is aware of both, but this document primarily
+uses the results from DESeq2.  I am reasonably certain they end up
+basically identical...
+
 The likelihood ratio testing performed on the TMRC3 data is intended
 to look for shared patterns of expression across some known, constant
 factor.  This may be time (are there patterns across the visits of
@@ -77,7 +90,7 @@ tc_clinical_filt <- normalize_expt(tc_clinical, filter = TRUE)
 tc_lrt_clinic <- deseq_lrt(tc_clinical_filt, transform = "vst", interaction = FALSE,
                            interactor_column = "visitnumber",
                            interest_column = "clinic")
-tc_lrt_clinic$cluster_data$plot
+tc_lrt_clinic[["cluster_data"]][["plot"]]
 ```
 
 ## Patterns across visits, only Tumaco
@@ -102,7 +115,7 @@ lrt_monocyte_visit <- deseq_lrt(t_visitcf_monocyte, transform = "vst",
                                 interaction = FALSE,
                                 interactor_column = "visitnumber",
                                 interest_column = "finaloutcome")
-lrt_monocyte_visit$cluster_data$plot
+lrt_monocyte_visit[["cluster_data"]][["plot"]]
 ```
 
 ### Neutrophils, only Tumaco
@@ -112,7 +125,7 @@ lrt_neutrophil_visit <- deseq_lrt(t_visitcf_neutrophil, transform = "vst",
                                   interaction = FALSE,
                                   interactor_column = "visitnumber",
                                   interest_column = "finaloutcome")
-lrt_neutrophil_visit$cluster_data$plot
+lrt_neutrophil_visit[["cluster_data"]][["plot"]]
 ```
 
 ### Eosinophils, only Tumaco
@@ -142,6 +155,21 @@ written <- write_xlsx(data=deseq_lrt_df,
 
 # GSVA
 
+GSVA(@hanzelmannGSVAGeneSet2013) is a _completely_ different family of
+analysis, and at least in my hands is used as a way to explore and
+look for publications which may be of interest.  The general idea is
+that it performs a specific set of normalizations on the raw data,
+rank orders the results; then cross references them against
+extant analyses looking for over represented gene sets in
+specific papers or categories (e.g. reactome/GO/etc).  This may either
+use a built-in set of mSigDB
+(@liberzonMolecularSignaturesDatabase2011) gene sets, or you may pull
+in manually downloaded (newer) data.  On my workstation, I do the
+latter because I can leverage the downloaded gmt/xml/etc files in
+order to get the full annotations for the gene sets and accompanying
+papers.  This container just uses the pre-downloaded mSigDB data
+(@GSVAdata), which is a bit older.
+
 *Reminder*: I disabled these for the moment in order to consider how
 to handle the (non)inclusion of the mSigDB gmt files.
 
@@ -161,6 +189,15 @@ broad_h <- load_gmt_signatures(signatures = "reference/msigdb/h.all.v7.5.1.entre
                                signature_category = "h")
 ```
 
+Actually, I am going to try to semi-change my mind:
+GSVA comes with a dataset comprised of some older mSigDB data.  Thus I
+will repeat each of the following blocks with an invocation which uses
+the older data and leave the previous invocations here so you can see
+what I actually ran to make pretty pictures.  In the best case
+scenario, the results should be nearly identical with only a few
+categories missing between the new copy I downloaded and loaded above
+and the loaded-by-gsva version.
+
 ### Clinical samples
 
 #### Clinical C2
@@ -176,7 +213,58 @@ tc_celltype_gsva_c2_sig$subset_plot
 tc_celltype_gsva_c2_sig$score_plot
 ```
 
+There are two other important differences between these results and the
+results obtained when using the above invocations and the following:
+
+1.  The above invocations were done before mSigDB changed the xml
+    format so that it no longer successfully parses.  I therefore
+    changed my function to use the newer sqlite versions for versions
+    of mSigDB > 7.2.  Thus I should change the above to reflect this.
+2.  The R data package version of the mSigDB (at least the last time I
+    checked) does not have all the fun/interesting experiment
+    annotation information included in the xml/sqlite.  Thus, the
+    following results will be sparser (unless I am mistaken about the
+    GSVAdata) vis a vis the annotations.
+
+heh, only 1 way to find out!  Let us try!
+
+Reminder to self, these are the current mSigDB human categories, I am
+not certain which (I assume all) are included in GSVAdata.
+
+* H: Hallmark genes, 50 gene sets for well defined states/processes.
+* C1: Genes by chromosomal position.  E.g. using the karyogram to make
+  groups.
+* C2: Curated gene sets: Various other datasets brought together:
+  BioCarta pathways, KEGG_MEDICUS, PID pathways, reactome pathways,
+  wikipathways, and legacy KEGG.
+* C3: Regulatory targets sets (e.g. expected to be affected by stuff
+  like miRNA): MIR targets, miRDB targets, MIR_LEGACY, TFT genes, and
+  the GTRD subset of TFT.
+* C4: Computational sets in cancer: 3CA from the cell atlas, GCN
+  (cancer gene neighborhoods), CM: Cancer modules.
+* C5: Gene ontology -- this is split between the canonical MF/BP/CC
+  and the human phenotype pathology dataset.
+* C6: oncogenic signature gene sets: pulled from NCBI GEO and/or Broad
+  experiments.
+* C7: immunologic signature gene sets: Perturbations of the immune
+  system: ImmuneSigDB, VAX (this one is our favorite for obvious (I
+  think) reasons)
+* C8: cell type signatures
+
+```{r}
+tc_celltype_gsva_c2 <- simple_gsva(
+  tc_valid, signature_category = "c2")
+
+tc_celltype_gsva_c2_sig <- get_sig_gsva_categories(
+    tc_celltype_gsva_c2,
+    excel = "analyses/3_cali_and_tumaco/GSVA/tc_valid_gsva_c2.xlsx")
+tc_celltype_gsva_c2_sig$subset_plot
+tc_celltype_gsva_c2_sig$score_plot
+```
+
 #### Valid  C7
+
+Ditto for C7
 
 ```{r, eval=FALSE}
 tc_celltype_gsva_c7 <- simple_gsva(
@@ -187,6 +275,19 @@ tc_celltype_gsva_c7_sig <- get_sig_gsva_categories(
     tc_celltype_gsva_c7,
     excel = "analyses/3_cali_and_tumaco/GSVA/tc_valid_gsva_c7.xlsx")
 ```
+
+```{r}
+tc_celltype_gsva_c7 <- simple_gsva(
+  tc_valid, signature_category = "c7")
+
+tc_celltype_gsva_c7_sig <- get_sig_gsva_categories(
+    tc_celltype_gsva_c7,
+    excel = "analyses/3_cali_and_tumaco/GSVA/tc_valid_gsva_c7.xlsx")
+tc_celltype_gsva_c7_sig$subset_plot
+tc_celltype_gsva_c7_sig$score_plot
+```
+
+I am not too fussed about the hallmark genes.
 
 #### Valid H
 
@@ -216,6 +317,16 @@ t_clinical_gsva_c2 <- simple_gsva(
     signatures = broad_c2,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "c2")
+t_clinical_gsva_c2_sig <- get_sig_gsva_categories(
+    t_clinical_gsva_c2,
+    excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_c2.xlsx")
+t_clinical_gsva_c2_sig$subset_plot
+t_clinical_gsva_c2_sig$score_plot
+```
+
+```{r}
+t_clinical_gsva_c2 <- simple_gsva(
+    t_clinical, signature_category = "c2")
 t_clinical_gsva_c2_sig <- get_sig_gsva_categories(
     t_clinical_gsva_c2,
     excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_c2.xlsx")
@@ -285,6 +396,14 @@ t_clinical_gsva_c7 <- simple_gsva(
     signatures = broad_c7,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "c7")
+t_clinical_gsva_c7_sig <- get_sig_gsva_categories(
+    t_clinical_gsva_c7,
+    excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_c7.xlsx")
+```
+
+```{r}
+t_clinical_gsva_c7 <- simple_gsva(
+    t_clinical, signature_category = "c7")
 t_clinical_gsva_c7_sig <- get_sig_gsva_categories(
     t_clinical_gsva_c7,
     excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_c7.xlsx")
@@ -425,6 +544,14 @@ t_clinical_gsva_h_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_h.xlsx")
 ```
 
+```{r}
+t_clinical_gsva_h <- simple_gsva(
+    t_clinical, signature_category = "h")
+t_clinical_gsva_h_sig <- get_sig_gsva_categories(
+    t_clinical_gsva_h,
+    excel = "analyses/4_tumaco/GSVA/t_clinical_gsva_h.xlsx")
+```
+
 * Genes up-regulated in response to alpha interferon proteins.
 * Genes involved in protein secretion pathway.
 * Genes up-regulated in response to IFNG [GeneID=3458].
@@ -453,6 +580,14 @@ t_biopsy_gsva_c2 <- simple_gsva(
     signatures = broad_c2,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category="c2")
+t_biopsy_gsva_c2_sig <- get_sig_gsva_categories(
+    t_biopsy_gsva_c2,
+    excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_c2.xlsx")
+```
+
+```{r}
+t_biopsy_gsva_c2 <- simple_gsva(
+    t_biopsies, signature_category = "c2")
 t_biopsy_gsva_c2_sig <- get_sig_gsva_categories(
     t_biopsy_gsva_c2,
     excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_c2.xlsx")
@@ -555,6 +690,14 @@ t_biopsy_gsva_c7_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_c7.xlsx")
 ```
 
+```{r}
+t_biopsy_gsva_c7 <- simple_gsva(
+    t_biopsies, signature_category = "c7")
+t_biopsy_gsva_c7_sig <- get_sig_gsva_categories(
+    t_biopsy_gsva_c7,
+    excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_c7.xlsx")
+```
+
 * 28099485: Genes up-regulated in B cell 1d vs 0d in adults (18-49) after exposure to inactivated monovalent influenza A/Indonesia/05/2005 H5N1 split-virus vaccine , time point 1D , administered i.m.
 * 24912498: Genes up-regulated in peripheral blood mononuclear cell 28d vs 7d in infants (4-6m) (BCG-primed) after exposure to Modified Vaccinia Ankara (MVA) virus vaccine vector , time point 28D
 * 24912498: Genes up-regulated in peripheral blood mononuclear cell vaccinated vs candin placebo in infants (4-6m) (BCG-primed) after exposure to Modified Vaccinia Ankara (MVA) virus vaccine vector , time point 28D
@@ -619,6 +762,14 @@ t_biopsy_gsva_h_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_h.xlsx")
 ```
 
+```{r}
+t_biopsy_gsva_h <- simple_gsva(
+    t_biopsies, signature_category = "h")
+t_biopsy_gsva_h_sig <- get_sig_gsva_categories(
+    t_biopsy_gsva_h,
+    excel = "analyses/4_tumaco/GSVA/t_biopsy_gsva_h.xlsx")
+```
+
 #### Tumaco Eosinophils C7
 
 ```{r, eval=FALSE}
@@ -627,6 +778,14 @@ t_eosinophil_gsva_c7 <- simple_gsva(
     signatures = broad_c7,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "c7")
+t_eosinophil_gsva_c7_sig <- get_sig_gsva_categories(
+    t_eosinophil_gsva_c7,
+    excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_c7.xlsx")
+```
+
+```{r}
+t_eosinophil_gsva_c7 <- simple_gsva(
+    t_eosinophils, signature_category = "c7")
 t_eosinophil_gsva_c7_sig <- get_sig_gsva_categories(
     t_eosinophil_gsva_c7,
     excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_c7.xlsx")
@@ -645,6 +804,14 @@ t_eosinophil_gsva_c2_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_c2.xlsx")
 ```
 
+```{r}
+t_eosinophil_gsva_c2 <- simple_gsva(
+    t_eosinophils, signature_category = "c2")
+t_eosinophil_gsva_c2_sig <- get_sig_gsva_categories(
+    t_eosinophil_gsva_c2,
+    excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_c2.xlsx")
+```
+
 #### Tumaco Eosinophils H
 
 ```{r, eval=FALSE}
@@ -653,6 +820,14 @@ t_eosinophil_gsva_h <- simple_gsva(
     signatures = broad_h,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "h")
+t_eosinophil_gsva_h_sig <- get_sig_gsva_categories(
+    t_eosinophil_gsva_h,
+    excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_h.xlsx")
+```
+
+```{r}
+t_eosinophil_gsva_h <- simple_gsva(
+    t_eosinophils, signature_category = "h")
 t_eosinophil_gsva_h_sig <- get_sig_gsva_categories(
     t_eosinophil_gsva_h,
     excel = "analyses/4_tumaco/GSVA/t_eosinophil_gsva_h.xlsx")
@@ -671,6 +846,14 @@ t_monocyte_gsva_c7_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_c7.xlsx")
 ```
 
+```{r}
+t_monocyte_gsva_c7 <- simple_gsva(
+    t_monocytes, signature_category = "c7")
+t_monocyte_gsva_c7_sig <- get_sig_gsva_categories(
+    t_monocyte_gsva_c7,
+    excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_c7.xlsx")
+```
+
 #### Tumaco Monocytes C2
 
 ```{r, eval=FALSE}
@@ -679,6 +862,14 @@ t_monocyte_gsva_c2 <- simple_gsva(
     signatures = broad_c2,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "c2")
+t_monocyte_gsva_c2_sig <- get_sig_gsva_categories(
+    t_monocyte_gsva_c2,
+    excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_c2.xlsx")
+```
+
+```{r}
+t_monocyte_gsva_c2 <- simple_gsva(
+    t_monocytes, signature_category = "c2")
 t_monocyte_gsva_c2_sig <- get_sig_gsva_categories(
     t_monocyte_gsva_c2,
     excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_c2.xlsx")
@@ -697,6 +888,14 @@ t_monocyte_gsva_h_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_h.xlsx")
 ```
 
+```{r}
+t_monocyte_gsva_h <- simple_gsva(
+    t_monocytes, signature_category = "h")
+t_monocyte_gsva_h_sig <- get_sig_gsva_categories(
+    t_monocyte_gsva_h,
+    excel = "analyses/4_tumaco/GSVA/t_monocyte_gsva_h.xlsx")
+```
+
 #### Tumaco Neutrophils c7
 
 ```{r, eval=FALSE}
@@ -705,6 +904,14 @@ t_neutrophil_gsva_c7 <- simple_gsva(
     signatures = broad_c7,
     msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
     signature_category = "c7")
+t_neutrophil_gsva_c7_sig <- get_sig_gsva_categories(
+    t_neutrophil_gsva_c7,
+    excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_c7.xlsx")
+```
+
+```{r}
+t_neutrophil_gsva_c7 <- simple_gsva(
+    t_neutrophils, signature_category = "c7")
 t_neutrophil_gsva_c7_sig <- get_sig_gsva_categories(
     t_neutrophil_gsva_c7,
     excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_c7.xlsx")
@@ -723,6 +930,14 @@ t_neutrophil_gsva_c2_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_c2.xlsx")
 ```
 
+```{r}
+t_neutrophil_gsva_c2 <- simple_gsva(
+    t_neutrophils, signature_category = "c2")
+t_neutrophil_gsva_c2_sig <- get_sig_gsva_categories(
+    t_neutrophil_gsva_c2,
+    excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_c2.xlsx")
+```
+
 #### Tumaco Neutrophils H
 
 ```{r, eval=FALSE}
@@ -736,15 +951,12 @@ t_neutrophil_gsva_h_sig <- get_sig_gsva_categories(
     excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_h.xlsx")
 ```
 
-```{r saveme, eval=FALSE}
-if (!isTRUE(get0("skip_load"))) {
-  pander::pander(sessionInfo())
-  message("This is hpgltools commit: ", get_git_commit())
-  message("Saving to ", savefile)
-  tmp <- sm(saveme(filename=savefile))
-}
+```{r}
+t_neutrophil_gsva_h <- simple_gsva(
+    t_neutrophils, signature_category = "h")
+t_neutrophil_gsva_h_sig <- get_sig_gsva_categories(
+    t_neutrophil_gsva_h,
+    excel = "analyses/4_tumaco/GSVA/t_neutrophil_gsva_h.xlsx")
 ```
 
-```{r loadme_after, eval=FALSE}
-tmp <- loadme(filename=savefile)
-```
+# Bibliography

@@ -60,7 +60,13 @@ rmd_file <- glue("03differential_expression_both.Rmd")
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 xlsx_prefix <- "analyses/3_cali_and_tumaco"
+clinic_prefix <- glue("{xlsx_prefix}/DE_Clinic")
+clinic_cf_prefix <- glue("{xlsx_prefix}/DE_Clinic_Cure_Fail")
 cf_prefix <- glue("{xlsx_prefix}/DE_Cure_Fail")
+visit_prefix <- glue("{xlsx_prefix}/DE_Visits")
+sex_prefix <- glue("{xlsx_prefix}/Sex")
+eth_prefix <- glue("{xlsx_prefix}/Ethnicity")
+gsea_prefix <- glue("{xlsx_prefix}/GSEA")
 ```
 
 # Changelog
@@ -130,20 +136,20 @@ because it is so easy to invoke gprofiler.
 
 ```{r}
 clinic_contrasts <- list(
-  "clinics" = c("Cali", "Tumaco"))
+  "clinics" = c("cali", "tumaco"))
 ## In some cases we have no Cali failure samples, so there remain only 2
 ## contrasts that are likely of interest
 tc_cf_contrasts <- list(
-  "tumaco" = c("Tumacofailure", "Tumacocure"),
-  "cure" = c("Tumacocure", "Calicure"))
+  "tumaco" = c("tumacofailure", "tumacocure"),
+  "cure" = c("tumacocure", "calicure"))
 ## In other cases, we have cure/fail for both places.
 clinic_cf_contrasts <- list(
-  "cali" = c("Califailure", "Calicure"),
-  "tumaco" = c("Tumacofailure", "Tumacocure"),
-  "cure" = c("Tumacocure", "Calicure"),
-  "fail" = c("Tumacofailure", "Califailure"))
+  "cali" = c("califailure", "calicure"),
+  "tumaco" = c("tumacofailure", "tumacocure"),
+  "cure" = c("tumacocure", "calicure"),
+  "fail" = c("tumacofailure", "califailure"))
 cf_contrast <- list(
-  "outcome" = c("Tumacofailure", "Tumacocure"))
+  "outcome" = c("tumacofailure", "tumacocure"))
 t_cf_contrast <- list(
   "outcome" = c("failure", "cure"))
 visitcf_contrasts <- list(
@@ -180,19 +186,17 @@ tc_clinic_type <- tc_valid %>%
   set_expt_batches(fact = "typeofcells")
 
 table(pData(tc_clinic_type)[["condition"]])
-tc_all_clinic_de_sva <- all_pairwise(tc_clinic_type, model_batch = "svaseq", parallel = FALSE,
-                                     filter = TRUE)
+tc_all_clinic_de_sva <- all_pairwise(tc_clinic_type, model_batch = "svaseq", filter = TRUE)
 tc_all_clinic_de_sva
 tc_all_clinic_de_sva[["deseq"]][["contrasts_performed"]]
 
 tc_all_clinic_table_sva <- combine_de_tables(
   tc_all_clinic_de_sva, keepers = clinic_contrasts,
-#  rda = glue("rda/tc_all_clinic_table_sva-v{ver}.rda"),
-  excel = glue("{xlsx_prefix}/compare_clinics/tc_all_clinic_table_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_prefix}/tc_all_clinic_table_sva-v{ver}.xlsx"))
 tc_all_clinic_table_sva
 tc_all_clinic_sig_sva <- extract_significant_genes(
   tc_all_clinic_table_sva,
-  excel = glue("{xlsx_prefix}/compare_clinics/tc_clinic_type_sig_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_prefix}/compare_clinics/tc_clinic_type_sig_sva-v{ver}.xlsx"))
 tc_all_clinic_sig_sva
 ```
 
@@ -201,13 +205,13 @@ tc_all_clinic_sig_sva
 ```{r}
 increased_tumaco_categories_up <- simple_gprofiler(
   tc_all_clinic_sig_sva[["deseq"]][["ups"]][["clinics"]],
-  excel = glue("analyses/3_cali_and_tumaco/GSEA/tumaco_cateogies_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/tumaco_cateogies_up-v{ver}.xlsx"))
 increased_tumaco_categories_up
 increased_tumaco_categories_up[["pvalue_plots"]][["BP"]]
 
 increased_cali_categories <- simple_gprofiler(
   tc_all_clinic_sig_sva[["deseq"]][["downs"]][["clinics"]],
-  excel = glue("analyses/3_cali_and_tumaco/GSEA/cali_cateogies_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/cali_cateogies_up-v{ver}.xlsx"))
 increased_cali_categories
 increased_cali_categories[["pvalue_plots"]][["BP"]]
 ```
@@ -259,11 +263,11 @@ tc_eosinophils_clinic_de_nobatch[["deseq"]][["contrasts_performed"]]
 
 tc_eosinophils_clinic_table_nobatch <- combine_de_tables(
   tc_eosinophils_clinic_de_nobatch, keepers = tc_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Eosinophils/tc_eosinophils_clinic_table_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Eosinophils/tc_eosinophils_clinic_table_nobatch-v{ver}.xlsx"))
 tc_eosinophils_clinic_table_nobatch
 tc_eosinophils_clinic_sig_nobatch <- extract_significant_genes(
   tc_eosinophils_clinic_table_nobatch,
-  excel = glue("{xlsx_prefix}/clinic_cf/Eosinophils/tc_eosinophils_clinic_sig_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Eosinophils/tc_eosinophils_clinic_sig_nobatch-v{ver}.xlsx"))
 tc_eosinophils_clinic_sig_nobatch
 
 tc_eosinophils_clinic_de_sva <- all_pairwise(tc_eosinophils, model_batch = "svaseq", filter = TRUE)
@@ -272,11 +276,11 @@ tc_eosinophils_clinic_de_sva[["deseq"]][["contrasts_performed"]]
 
 tc_eosinophils_clinic_table_sva <- combine_de_tables(
   tc_eosinophils_clinic_de_sva, keepers = tc_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Eosinophils/tc_eosinophils_clinic_table_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Eosinophils/tc_eosinophils_clinic_table_sva-v{ver}.xlsx"))
 tc_eosinophils_clinic_table_sva
 tc_eosinophils_clinic_sig_sva <- extract_significant_genes(
   tc_eosinophils_clinic_table_sva,
-  excel = glue("{xlsx_prefix}/clinic_cf/Eosinophils/tc_eosinophils_clinic_sig_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Eosinophils/tc_eosinophils_clinic_sig_sva-v{ver}.xlsx"))
 tc_eosinophils_clinic_sig_sva
 ```
 
@@ -297,11 +301,11 @@ tc_biopsies_clinic_de_sva[["deseq"]][["contrasts_performed"]]
 
 tc_biopsies_clinic_table_sva <- combine_de_tables(
   tc_biopsies_clinic_de_sva, keepers = tc_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Biopsies/tc_biopsies_clinic_table_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Biopsies/tc_biopsies_clinic_table_sva-v{ver}.xlsx"))
 tc_biopsies_clinic_table_sva
 tc_biopsies_clinic_sig_sva <- extract_significant_genes(
   tc_biopsies_clinic_table_sva,
-  excel = glue("{xlsx_prefix}/clinic_cf/Biopsies/tc_biopsies_clinic_sig_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Biopsies/tc_biopsies_clinic_sig_sva-v{ver}.xlsx"))
 tc_biopsies_clinic_sig_sva
 ```
 
@@ -318,16 +322,17 @@ in the model or surrogate estimation.  In theory at least, this should
 correspond to the PCA plot above when no batch estimation was performed.
 
 ```{r}
+table(pData(tc_monocytes)[["condition"]])
 tc_monocytes_de_nobatch <- all_pairwise(tc_monocytes, model_batch = FALSE, filter = TRUE)
 tc_monocytes_de_nobatch
 
 tc_monocytes_table_nobatch <- combine_de_tables(
   tc_monocytes_de_nobatch, keepers = clinic_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Monocytes/tc_monocytes_clinic_table_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Monocytes/tc_monocytes_clinic_table_nobatch-v{ver}.xlsx"))
 tc_monocytes_table_nobatch
 tc_monocytes_sig_nobatch <- extract_significant_genes(
   tc_monocytes_table_nobatch,
-  excel = glue("{xlsx_prefix}/clinic_cf/Monocytes/tc_monocytes_clinic_sig_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Monocytes/tc_monocytes_clinic_sig_nobatch-v{ver}.xlsx"))
 tc_monocytes_sig_nobatch
 ```
 
@@ -344,11 +349,11 @@ tc_monocytes_de_sva
 
 tc_monocytes_table_sva <- combine_de_tables(
   tc_monocytes_de_sva, keepers = clinic_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Monocytes/tc_monocytes_clinic_table_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Monocytes/tc_monocytes_clinic_table_sva-v{ver}.xlsx"))
 tc_monocytes_table_sva
 tc_monocytes_sig_sva <- extract_significant_genes(
   tc_monocytes_table_sva,
-  excel = glue("{xlsx_prefix}/clinic_cf/Monocytes/tc_monocytes_clinic_sig_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Monocytes/tc_monocytes_clinic_sig_sva-v{ver}.xlsx"))
 tc_monocytes_sig_sva
 ```
 
@@ -385,11 +390,11 @@ tc_neutrophils_de_nobatch
 
 tc_neutrophils_table_nobatch <- combine_de_tables(
   tc_neutrophils_de_nobatch, keepers = clinic_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Neutrophils/tc_neutrophils_table_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Neutrophils/tc_neutrophils_table_nobatch-v{ver}.xlsx"))
 tc_neutrophils_table_nobatch
 tc_neutrophils_sig_nobatch <- extract_significant_genes(
   tc_neutrophils_table_nobatch,
-  excel = glue("{xlsx_prefix}/clinic_cf/Neutrophils/tc_neutrophils_sig_nobatch-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Neutrophils/tc_neutrophils_sig_nobatch-v{ver}.xlsx"))
 tc_neutrophils_sig_nobatch
 
 tc_neutrophils_de_sva <- all_pairwise(tc_neutrophils,
@@ -398,11 +403,11 @@ tc_neutrophils_de_sva
 
 tc_neutrophils_table_sva <- combine_de_tables(
   tc_neutrophils_de_sva, keepers = clinic_cf_contrasts,
-  excel = glue("{xlsx_prefix}/clinic_cf/Neutrophils/tc_neutrophils_table_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Neutrophils/tc_neutrophils_table_sva-v{ver}.xlsx"))
 tc_neutrophils_table_sva
 tc_neutrophils_sig_sva <- extract_significant_genes(
   tc_neutrophils_table_sva,
-  excel = glue("{xlsx_prefix}/clinic_cf/Neutrophils/tc_neutrophils_sig_sva-v{ver}.xlsx"))
+  excel = glue("{clinic_cf_prefix}/Neutrophils/tc_neutrophils_sig_sva-v{ver}.xlsx"))
 tc_neutrophils_sig_sva
 ```
 
@@ -459,12 +464,12 @@ some fun interactive plots.  I will add an example here.
 ```{r}
 tc_eosinophil_gprofiler <- simple_gprofiler(
   tc_eosinophils_sigenes_up,
-  excel = glue("{xlsx_prefix}/GSEA/eosinophil_clinics_tumaco_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/eosinophil_clinics_tumaco_up-v{ver}.xlsx"))
 tc_eosinophil_gprofiler
 
 clinic_gp <- simple_gprofiler(
   clinic_sigenes,
-  excel = glue("{xlsx_prefix}/GSEA/both_clinics_cali_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/both_clinics_cali_up-v{ver}.xlsx"))
 clinic_gp$pvalue_plots$REAC
 clinic_gp$pvalue_plots$BP
 clinic_gp$pvalue_plots$TF
@@ -483,20 +488,20 @@ transcription factor database.
 ```{r}
 tc_eosinophils_gp <- simple_gprofiler(
   tc_eosinophils_sigenes,
-  excel = glue("{xlsx_prefix}/GSEA/eosinophil_clinics-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/eosinophil_clinics-v{ver}.xlsx"))
 tc_eosinophils_gp
 tc_eosinophils_gp$pvalue_plots$REAC
 tc_eosinophils_gp$pvalue_plots$BP
 
 tc_eosinophils_up_gp <- simple_gprofiler(
   tc_eosinophils_sigenes_up,
-  excel = glue("{xlsx_prefix}/GSEA/eosinophil_clinics_tumaco_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/eosinophil_clinics_tumaco_up-v{ver}.xlsx"))
 tc_eosinophils_up_gp
 tc_eosinophils_up_gp$pvalue_plots$REAC
 
 tc_eosinophils_down_gp <- simple_gprofiler(
   tc_eosinophils_sigenes_down,
-  excel = glue("{xlsx_prefix}/GSEA/eosinophil_clinics_cali_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/eosinophil_clinics_cali_up-v{ver}.xlsx"))
 tc_eosinophils_down_gp
 tc_eosinophils_down_gp$pvalue_plots$REAC
 ```
@@ -509,14 +514,14 @@ looking at the monocyte samples.
 ```{r}
 tc_monocytes_up_gp <- simple_gprofiler(
   tc_monocytes_sigenes,
-  excel = glue("{xlsx_prefix}/GSEA/monocyte_clinics-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/monocyte_clinics-v{ver}.xlsx"))
 tc_monocytes_up_gp
 tc_monocytes_up_gp$pvalue_plots$REAC
 tc_monocytes_up_gp$pvalue_plots$BP
 
 tc_monocytes_down_gp <- simple_gprofiler(
   tc_monocytes_sigenes_down,
-  excel = glue("{xlsx_prefix}/GSEA/monocyte_clinics_cali_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/monocyte_clinics_cali_up-v{ver}.xlsx"))
 tc_monocytes_down_gp$pvalue_plots$REAC
 tc_monocytes_down_gp$pvalue_plots$BP
 ```
@@ -532,20 +537,20 @@ return any hits for the increased search.
 ```{r}
 tc_neutrophils_gp <- simple_gprofiler(
   tc_neutrophils_sigenes,
-  excel = glue("{xlsx_prefix}/GSEA/neutrophil_clinics-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/neutrophil_clinics-v{ver}.xlsx"))
 ## tc_neutrophils_gp$pvalue_plots$REAC ## no hits
 tc_neutrophils_gp$pvalue_plots$BP
 tc_neutrophils_gp$pvalue_plots$TF
 
 tc_neutrophils_up_gp <- simple_gprofiler(
   tc_neutrophils_sigenes_up,
-  excel = glue("{xlsx_prefix}/GSEA/neutrophil_clinics_tumaco_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/neutrophil_clinics_tumaco_up-v{ver}.xlsx"))
 ## tc_neutrophils_up_gp$pvalue_plots$REAC ## No hits
 tc_neutrophils_up_gp$pvalue_plots$BP
 
 tc_neutrophils_down_gp <- simple_gprofiler(
   tc_neutrophils_sigenes_down,
-  excel = glue("{xlsx_prefix}/GSEA/neutrophil_clinics_cali_up-v{ver}.xlsx"))
+  excel = glue("{gsea_prefix}/neutrophil_clinics_cali_up-v{ver}.xlsx"))
 tc_neutrophils_down_gp$pvalue_plots$REAC
 tc_neutrophils_down_gp$pvalue_plots$BP
 ```
@@ -587,22 +592,46 @@ two clinics.
 ## All cell types together, with(out) SVA
 
 ```{r}
+table(pData(tc_valid)[["condition"]])
 tc_all_cf_de_sva <- all_pairwise(tc_valid, filter = TRUE, model_batch = "svaseq")
 tc_all_cf_table_sva <- combine_de_tables(
   tc_all_cf_de_sva, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_valid_cf_table_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_table_sva-v{ver}.xlsx"))
 tc_all_cf_sig_sva <- extract_significant_genes(
   tc_all_cf_table_sva,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_valid_cf_sig_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_sig_sva-v{ver}.xlsx"))
 
 tc_all_cf_de_batch <- all_pairwise(tc_valid, filter = TRUE, model_batch = TRUE)
 tc_all_cf_table_batch <- combine_de_tables(
-  tc_all_cf_de_batch,
-  keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_valid_cf_table_batch-v{ver}.xlsx"))
+  tc_all_cf_de_batch, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_table_batch-v{ver}.xlsx"))
 tc_all_cf_sig_batch <- extract_significant_genes(
   tc_all_cf_table_batch,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_valid_cf_sig_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_sig_batch-v{ver}.xlsx"))
+```
+
+## All cell types except biopsies
+
+I am not sure if this is the best choice, but I call the set of all
+samples excluding biopsies 'clinical'.
+
+```{r}
+table(pData(tc_clinical_nobiop)[["condition"]])
+tc_clinical_cf_de_sva <- all_pairwise(tc_clinical_nobiop, filter = TRUE, model_batch = "svaseq")
+tc_clinical_cf_table_sva <- combine_de_tables(
+  tc_clinical_cf_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_table_sva-v{ver}.xlsx"))
+tc_clinical_cf_sig_sva <- extract_significant_genes(
+  tc_clinical_cf_table_sva, according_to = "deseq",
+  excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_sig_sva-v{ver}.xlsx"))
+
+tc_clinical_cf_de_batch <- all_pairwise(tc_clinical_nobiop, filter = TRUE, model_batch = TRUE)
+tc_clinical_cf_table_batch <- combine_de_tables(
+  tc_clinical_cf_de_batch, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_table_batch-v{ver}.xlsx"))
+tc_clinical_cf_sig_batch <- extract_significant_genes(
+  tc_clinical_cf_table_batch, according_to = "deseq",
+  excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_sig_batch-v{ver}.xlsx"))
 ```
 
 ## Biopsies, with(out) SVA
@@ -615,18 +644,18 @@ tc_biopsies_cf <- set_expt_conditions(tc_biopsies, fact = "finaloutcome")
 tc_biopsies_cf_de_sva <- all_pairwise(tc_biopsies_cf, filter = TRUE, model_batch = "svaseq")
 tc_biopsies_cf_table_sva <- combine_de_tables(
   tc_biopsies_cf_de_sva, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/Biopsies/tc_biopsies_cf_table_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/Biopsies/tc_biopsies_cf_table_sva-v{ver}.xlsx"))
 tc_biopsies_cf_sig_sva <- extract_significant_genes(
   tc_biopsies_cf_table_sva,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_biopsies_cf_sig_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_biopsies_cf_sig_sva-v{ver}.xlsx"))
 
 tc_biopsies_cf_de_batch <- all_pairwise(tc_biopsies_cf, filter = TRUE, model_batch = TRUE)
 tc_biopsies_cf_table_batch <- combine_de_tables(
   tc_biopsies_cf_de_batch, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_biopsies_cf_table_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_biopsies_cf_table_batch-v{ver}.xlsx"))
 tc_biopsies_cf_sig_batch <- extract_significant_genes(
   tc_biopsies_cf_table_batch,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_biopsies_cf_sig_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_biopsies_cf_sig_batch-v{ver}.xlsx"))
 ```
 
 ## Eosinophils, with(out) SVA
@@ -639,18 +668,18 @@ tc_eosinophils_cf <- set_expt_conditions(tc_eosinophils, fact = "finaloutcome")
 tc_eosinophils_cf_de_sva <- all_pairwise(tc_eosinophils_cf, filter = TRUE, model_batch = "svaseq")
 tc_eosinophils_cf_table_sva <- combine_de_tables(
   tc_eosinophils_cf_de_sva, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/Eosinophils/tc_eosinophils_cf_table_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/Eosinophils/tc_eosinophils_cf_table_sva-v{ver}.xlsx"))
 tc_eosinophils_cf_sig_sva <- extract_significant_genes(
   tc_eosinophils_cf_table_sva,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_eosinophils_cf_sig_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_eosinophils_cf_sig_sva-v{ver}.xlsx"))
 
 tc_eosinophils_cf_de_batch <- all_pairwise(tc_eosinophils_cf, filter = TRUE, model_batch = TRUE)
 tc_eosinophils_cf_table_batch <- combine_de_tables(
   tc_eosinophils_cf_de_batch, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_eosinophils_cf_table_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_eosinophils_cf_table_batch-v{ver}.xlsx"))
 tc_eosinophils_cf_sig_batch <- extract_significant_genes(
   tc_eosinophils_cf_table_batch,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_eosinophils_cf_sig_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_eosinophils_cf_sig_batch-v{ver}.xlsx"))
 ```
 
 ## Monocytes, with(out) SVA
@@ -664,18 +693,18 @@ tc_monocytes_cf <- set_expt_conditions(tc_monocytes, fact = "finaloutcome")
 tc_monocytes_cf_de_sva <- all_pairwise(tc_monocytes_cf, filter = TRUE, model_batch = "svaseq")
 tc_monocytes_cf_table_sva <- combine_de_tables(
   tc_monocytes_cf_de_sva, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/Monocytes/tc_monocytes_cf_table_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/Monocytes/tc_monocytes_cf_table_sva-v{ver}.xlsx"))
 tc_monocytes_cf_sig_sva <- extract_significant_genes(
   tc_monocytes_cf_table_sva,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_monocytes_cf_sig_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_monocytes_cf_sig_sva-v{ver}.xlsx"))
 
 tc_monocytes_cf_de_batch <- all_pairwise(tc_monocytes_cf, filter = TRUE, model_batch = TRUE)
 tc_monocytes_cf_table_batch <- combine_de_tables(
   tc_monocytes_cf_de_batch, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_monocytes_cf_table_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_monocytes_cf_table_batch-v{ver}.xlsx"))
 tc_monocytes_cf_sig_batch <- extract_significant_genes(
   tc_monocytes_cf_table_batch,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_monocytes_cf_sig_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_monocytes_cf_sig_batch-v{ver}.xlsx"))
 ```
 
 ## Neutrophils, with(out) SVA
@@ -688,18 +717,18 @@ tc_neutrophils_cf_de_sva <- all_pairwise(tc_neutrophils_cf,
                                          filter = TRUE, model_batch = "svaseq")
 tc_neutrophils_cf_table_sva <- combine_de_tables(
   tc_neutrophils_cf_de_sva, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/Neutrophils/tc_neutrophils_cf_table_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/Neutrophils/tc_neutrophils_cf_table_sva-v{ver}.xlsx"))
 tc_neutrophils_cf_sig_sva <- extract_significant_genes(
   tc_neutrophils_cf_table_sva,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_neutrophils_cf_sig_sva-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_neutrophils_cf_sig_sva-v{ver}.xlsx"))
 
 tc_neutrophils_cf_de_batch <- all_pairwise(tc_neutrophils_cf, filter = TRUE, model_batch = TRUE)
 tc_neutrophils_cf_table_batch <- combine_de_tables(
   tc_neutrophils_cf_de_batch, keepers = t_cf_contrast,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_neutrophils_cf_table_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_neutrophils_cf_table_batch-v{ver}.xlsx"))
 tc_neutrophils_cf_sig_batch <- extract_significant_genes(
   tc_neutrophils_cf_table_batch,
-  excel = glue("{xlsx_prefix}/cf/All_Samples/tc_neutrophils_cf_sig_batch-v{ver}.xlsx"))
+  excel = glue("{cf_prefix}/All_Samples/tc_neutrophils_cf_sig_batch-v{ver}.xlsx"))
 ```
 
 # Visit comparisons
@@ -713,10 +742,10 @@ moved to this document.
 v1_vs_later <- all_pairwise(tc_v1vs, model_batch = "svaseq", filter = TRUE)
 v1_vs_later_table <- combine_de_tables(
   v1_vs_later, keepers = visit_v1later,
-  excel = glue("{xlsx_prefix}/v1_vs_later_tables-v{ver}.xlsx"))
+  excel = glue("{visit_prefix}/v1_vs_later_tables-v{ver}.xlsx"))
 v1_vs_later_sig <- extract_significant_genes(
   v1_vs_later_table,
-  excel = glue("{xlsx_prefix}/v1_vs_later_sig-v{ver}.xlsx"))
+  excel = glue("{visit_prefix}/v1_vs_later_sig-v{ver}.xlsx"))
 ```
 
 #### GSEA: V1 vs other visits.
@@ -732,9 +761,9 @@ v1later_gp[[2]]$pvalue_plots$REAC
 ```{r}
 tc_sex_de <- all_pairwise(tc_sex, model_batch = "svaseq", filter = TRUE)
 tc_sex_table <- combine_de_tables(
-  tc_sex_de, excel = glue("{xlsx_prefix}/tc_sex_table-v{ver}.xlsx"))
+  tc_sex_de, excel = glue("{sex_prefix}/tc_sex_table-v{ver}.xlsx"))
 tc_sex_sig <- extract_significant_genes(
-  tc_sex_table, excel = glue("{xlsx_prefix}/tc_sex_sig-v{ver}.xlsx"))
+  tc_sex_table, excel = glue("{sex_prefix}/tc_sex_sig-v{ver}.xlsx"))
 tc_sex_gp <- all_gprofiler(tc_sex_sig)
 ```
 
@@ -743,10 +772,10 @@ tc_sex_cure <- subset_expt(tc_sex, subset = "finaloutcome=='cure'")
 tc_sex_cure_de <- all_pairwise(tc_sex_cure, model_batch = "svaseq", filter = TRUE)
 tc_sex_cure_de
 tc_sex_cure_table <- combine_de_tables(
-  tc_sex_cure_de, excel = glue("{xlsx_prefix}/tc_sex_cure_table-v{ver}.xlsx"))
+  tc_sex_cure_de, excel = glue("{sex_prefix}/tc_sex_cure_table-v{ver}.xlsx"))
 tc_sex_cure_table
 tc_sex_cure_sig <- extract_significant_genes(
-  tc_sex_cure_table, excel = glue("{xlsx_prefix}/tc_sex_cure_sig-v{ver}.xlsx"))
+  tc_sex_cure_table, excel = glue("{sex_prefix}/tc_sex_cure_sig-v{ver}.xlsx"))
 tc_sex_cure_sig
 ```
 
@@ -766,26 +795,26 @@ tc_ethnicity_de <- all_pairwise(tc_etnia_expt, model_batch = "svaseq", filter = 
 tc_ethnicity_de
 tc_ethnicity_table <- combine_de_tables(
   tc_ethnicity_de, keepers = ethnicity_contrasts,
-  excel = glue("{xlsx_prefix}/tc_ethnicity_table-v{ver}.xlsx"))
+  excel = glue("{eth_prefix}/tc_ethnicity_table-v{ver}.xlsx"))
 tc_ethnicity_table
 tc_ethnicity_table[["plots"]][["mestizo_indigenous"]][["deseq_ma_plots"]]
 tc_ethnicity_table[["plots"]][["mestizo_afrocol"]][["deseq_ma_plots"]]
 tc_ethnicity_table[["plots"]][["indigenous_afrocol"]][["deseq_ma_plots"]]
 
 tc_ethnicity_sig <- extract_significant_genes(
-  tc_ethnicity_table, excel = glue("{xlsx_prefix}/tc_ethnicity_sig-v{ver}.xlsx"))
+  tc_ethnicity_table, excel = glue("{eth_prefix}/tc_ethnicity_sig-v{ver}.xlsx"))
 
 ethnicity_cure <- subset_expt(tc_etnia_expt, subset = "finaloutcome=='cure'")
 ethnicity_cure_de <- all_pairwise(ethnicity_cure, model_batch = "svaseq", filter = TRUE)
 ethnicity_cure_table <- combine_de_tables(
   ethnicity_cure_de, keepers = ethnicity_contrasts,
-  excel = glue("{xlsx_prefix}/ethnicity_cure_table-v{ver}.xlsx"))
+  excel = glue("{eth_prefix}/ethnicity_cure_table-v{ver}.xlsx"))
 ethnicity_cure_table
 ethnicity_cure_table[["plots"]][["mestizo_indigenous"]][["deseq_ma_plots"]]
 ethnicity_cure_table[["plots"]][["mestizo_afrocol"]][["deseq_ma_plots"]]
 ethnicity_cure_table[["plots"]][["indigenous_afrocol"]][["deseq_ma_plots"]]
 ethnicity_cure_sig <- extract_significant_genes(
-  ethnicity_cure_table, excel = glue("{xlsx_prefix}/ethnicity_cure_sig-v{ver}.xlsx"))
+  ethnicity_cure_table, excel = glue("{eth_prefix}/ethnicity_cure_sig-v{ver}.xlsx"))
 ethnicity_cure_sig
 ```
 

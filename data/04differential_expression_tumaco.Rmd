@@ -2,6 +2,7 @@
 title: "TMRC3 `r Sys.getenv('VERSION')`: Differential Expression analyses, Tumaco only."
 author: "atb abelew@gmail.com"
 date: "`r Sys.Date()`"
+bibliography: atb.bib
 runtime: shiny
 output:
   html_document:
@@ -29,7 +30,7 @@ body .main-container {
 body, td {
   font-size: 16px;
 }
-code.r{
+code.r {
   font-size: 16px;
 }
 pre {
@@ -40,9 +41,10 @@ pre {
 ```{r options, include=FALSE}
 library(hpgltools)
 library(dplyr)
+library(enrichplot)
 library(forcats)
 library(glue)
-## library(DOSE)  ## If I cannot get the darn importClassesFrom working right just library it...
+library(ggplot2)
 
 knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
 knitr::opts_chunk$set(
@@ -60,25 +62,89 @@ rmd_file <- glue("tmrc3_differential_expression_tumaco_{ver}.Rmd")
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 xlsx_prefix <- "analyses/4_tumaco"
-cf_prefix <- glue("{xlsx_prefix}/DE_Cure_vs_Fail")
+cf_prefix <- glue("{xlsx_prefix}/DE_Cure_Fail")
 ```
 
 # Changelog
 
+* 202406: Added an explicit comparison of different model
+  constructions using our most variable cell type, the neutrophils.
+* 202406: Working entirely out of the container now, separated
+  GSE/GSEA analyses, added a full treatment with clusterProfiler; I am
+  not currently writing the cp results out as xlsx files until/unless
+  someone expresses interest in them.
 * 202309: Disabled GSVA analyses until/unless we get permission to
   include the mSigDB 7.5.1 release.  I will simplify the filenames so
   that one may easily drop in a downloaded copy of the data and run
-  those blocks.  Until then, I guess you will have to trust me when I
-  say those blocks all work?
-* 202309: Moved all GSEA analyses to 04lrt_gsea_gsva.Rmd
-* 202309 next day: Moving GSEA back because it adds too much
+  those blocks.  Until then, I guess you (fictitious reader) will have
+  to trust me when I say those blocks all work? (Also, GSVA was moved
+  to a separate document)
+* 202309: Moved all gene set enrichment analyses to 04lrt_gsea_gsva.Rmd
+* 202309 next day: Moving gene set enrichment back because it adds too much
   complexity to save/reload the DE results for gProfiler and friends.
 * Still hunting for messed up colors, changed input data to match new version.
 
 # Introduction
 
-The various differential expression analyses of the data generated in tmrc3_datasets
-will occur in this document.
+The various differential expression analyses of the data generated in
+tmrc3_datasets will occur in this document.  Most of the actual work
+is via the function 'all_pairwise()'; the word 'all' in the name does
+a lot of work; it is responsible for performing all possible pairwise
+contrasts using all possible methods for which I have sufficient
+understanding to be able to write a reasonably robust pairwise
+function.  Currently this is limited to:
+
+* DESeq2 (@loveModeratedEstimationFold2014):  Our 'default'
+* edgeR (@mccarthyDifferentialExpressionAnalysis2012):  shares a
+  close conceptual lineage with DESeq2 I think.
+* limma (@ritchieLimmaPowersDifferential2015a):  along with voom this
+  provides a nicely robust set of tools.
+* EBseq (@lengEBSeqEmpiricalBayes2013):  I think it is not as robust as
+  the previous entries, but I like using it because it is an almost
+  purely bayesian method and as such provides a different perspective
+  on any dataset.
+* Noiseq (@tarazonaDataQualityAware2015):  I noticed this method
+  relatively recently and was sufficiently intrigued that I threw a
+  method together using it.  The authors appear to me to be looking to
+  understand a lot of the questions on which I spend a lot of time.
+* Dream (@hoffmanDreamPowerfulDifferential2020): I mostly like this
+  because it uses variancePartition, which I think is a really nice
+  toy when trying to understand what is going on in a dataset.
+* basic is my own, explicitly uninformed analysis.  It is my
+  'negative control' method because, if something agrees entirely with
+  it, then I know that all the fancy math and statistics performed by
+  that method worked out just the same as some doofus (me) just log2
+  subtracting the expression values.  It is not quite that basic, but
+  pretty close.
+
+The first 3 methods allow one to add surrogate variable estimates to
+the model when performing the differential expression analyses.
+Noiseq and Dream handle surrogates using their own heuristics, EBSeq
+is inimicable to that kind of model, and I explicitly chose to not
+make that possible for basic.  With that in mind, in most instances
+I usually deal with surrogates/batches in one of a few ways:
+
+1.  If the data is absurdly pretty, do nothing (pretty much
+    only for well-controlled bacterial data).
+2.  Add a known batch factor to the model (the default).
+3.  Try to ensure the data is suitable and invoke sva
+    (@leekSVAPackageRemoving2012) to acquire estimates and add them to
+    the model.
+4.  If the data has a known batch factor and it is particularly
+    pathological, use the combat implementation in sva.  As a general
+    rule I do not like this option because it is data destructive.
+
+The last two options are handled via a function named 'all_adjusters'
+in hpgltools which is responsible for ensuring that the data is sane
+for the assumptions made by each method and invokes each method
+(hopefully) properly.  It returns both modified counts and model
+estimates when possible and has implementations for a fair number of
+methods in this realm.  sva is my favorite by a pretty big margin,
+though I do sometimes use RUV (@rissoNormalizationRNAseqData2014) and of
+course, in writing this document I stumbled into another interesting
+contender: (@molaniaRemovingUnwantedVariation2023)  all_adjusters()
+also has implementations of every example/method I got out of the
+papers for sva (e.g. ssva/fsva), isva, smartsva, and some others.
 
 ## Define contrasts for DE analyses
 
@@ -93,31 +159,45 @@ name, and will thus be seen as the sheet name in the output xlsx
 file(s); the two pieces of the character vector value are the
 numerator and denominator of the associated contrast.
 
-## GSEA
-
-The GSEA analyses will follow each DE analysis during this document.
-
-Most (all?) of the GSEA analyses used in this paper were done via
-gProfiler rather than goseq/clusterProfiler/topGO/GOstats.  Primarily
-because it is so easy to invoke gprofiler.
+* Our primary question: fail/cure:  Any excel file written using this
+contrast will get a single worksheet comparing fail/cure.
+* Compare fail/cure for each visit: This takes a more granular view of
+the previous contrast.  If one is so-inclined, one could compare
+results from the following contrast against the previous and following
+contrast to learn about the dynamics of the healing (or not) process.
+* All samples by visit: This is effectively the opposite of the
+previous and compares all samples of visit x against visit y.
+* Visit 1 vs everything else: When I first did the previous set of
+contrasts I quickly realized that visits 2 and 3 are relatively
+similar and that it may be possible to gain a little power and learn a
+little more by combining them.
+* Directly compare celltypes: We have three clinical cell types in the
+data and the differences among them are quite interesting.
+* Ethnicities: We also have three ethnic groups in the data, though
+there are some wacky confounded variables when considering them
+through the lense of cure/fail; so any results comparing them should
+be treated with caution.
+* Powerless visits+celltype+cf: This is a last-minute addition
+requested by Maria Adelaida.  I assume it was suggested by a reviewer,
+though I do not recall seeing anything in the reviews which made this
+request.  The number of samples we have in the data just _barely_
+supports these contrasts, and given the strength of all the various
+surrogates, I would be somewhat reluctant to trust any genes deemed DE
+in them without some other evidence.  It should be noted that this is
+the intellectual counterpoint to the critique from a different
+reviewer, that artifically merging factors like this is problematic (I
+personally tend to agree with the later argument more than the former
+with the caveat that the added complexity (with respect to what is
+actually typed by the person (me)) can be a problem.  Thus I tend to
+do the thing which is explicitly less statistically correct (but I can
+also show pretty definitively that the results are very nearly
+identical) in order to make it easier to show that no mistakes were
+made.  E.g. tension between 'correctness' and 'robustness'.
 
 ```{r}
-clinic_contrasts <- list(
-  "clinics" = c("Cali", "Tumaco"))
-## In some cases we have no Cali failure samples, so there remain only 2
-## contrasts that are likely of interest
-tc_cf_contrasts <- list(
-  "tumaco" = c("Tumacofailure", "Tumacocure"),
-  "cure" = c("Tumacocure", "Calicure"))
-## In other cases, we have cure/fail for both places.
-clinic_cf_contrasts <- list(
-  "cali" = c("Califailure", "Calicure"),
-  "tumaco" = c("Tumacofailure", "Tumacocure"),
-  "cure" = c("Tumacocure", "Calicure"),
-  "fail" = c("Tumacofailure", "Califailure"))
-cf_contrast <- list(
-  "outcome" = c("Tumacofailure", "Tumacocure"))
 t_cf_contrast <- list(
+  "outcome" = c("tumacofailure", "tumacocure"))
+cf_contrast <- list(
   "outcome" = c("failure", "cure"))
 visitcf_contrasts <- list(
   "v1cf" = c("v1failure", "v1cure"),
@@ -137,14 +217,61 @@ ethnicity_contrasts <- list(
   "mestizo_indigenous" = c("mestiza", "indigena"),
   "mestizo_afrocol" = c("mestiza", "afrocol"),
   "indigenous_afrocol" = c("indigena", "afrocol"))
+visittype_contrasts_mono <- list(
+  "v2v1_mono_cure" = c("monocytes2cure", "monocytes1cure"),
+  "v2v1_mono_failure" = c("monocytes2failure", "monocytes1failure"),
+  "v3v1_mono_cure" = c("monocytes3cure", "monocytes1cure"),
+  "v3v1_mono_failure" = c("monocytes3failure", "monocytes1failure"))
+visittype_contrasts_eo <- list(
+  "v2v1_eo_cure" = c("eosinophils2cure", "eosinophils1cure"),
+  "v2v1_eo_failure" = c("eosinophils2failure", "eosinophils1failure"),
+  "v3v1_eo_cure" = c("eosinophils3cure", "eosinophils1cure"),
+  "v3v1_eo_failure" = c("eosinophils3failure", "eosinophils1failure"))
+visittype_contrasts_ne <- list(
+  "v2v1_ne_cure" = c("neutrophils2cure", "neutrophils1cure"),
+  "v2v1_ne_failure" = c("neutrophils2failure", "neutrophils1failure"),
+  "v3v1_ne_cure" = c("neutrophils3cure", "neutrophils1cure"),
+  "v3v1_ne_failure" = c("neutrophils3failure", "neutrophils1failure"))
+visittype_contrasts <- c(visittype_contrasts_mono,
+                         visittype_contrasts_eo,
+                         visittype_contrasts_ne)
 ```
+
+## Gene Set Enrichment
+
+Previously, the gene set enrichment will followed each DE analysis
+during this document.  I am adding a series of explicitly GSEA
+analyses in this most recent iteration, in these I will pass the full
+DE table and check the distribution of logFC values against the genes
+in each category as opposed to the simpler over-enrichment of the
+high/low DE genes.
+
+However, I moved those analyses to a separate document in the hopes of
+improving their organization.
 
 # Only Tumaco samples
 
 Start over, this time with only the samples from Tumaco.  We currently
 are assuming these will prove to be the only analyses used for final
 interpretation.  This is primarily because we have insufficient
-failed treatment samples from Cali.
+failed treatment samples from Cali.  There is one disadvantage when
+using these samples: they had to travel further than the samples taken
+in Cali and there is significant variance observed between the two
+locations and we cannot discern its source.  In the worst case
+scenario (one which I think unlikely), the variance is caused
+by degraded RNA during transit.  We do know that the samples were
+well-stored in RNALater and frozen/etc, so I am inclined to discount
+that possibility.  I think a more compelling difference lies in the
+different population demographics observed in the two locations.
+Actually, now that I have typed these sentences out, I think I can
+semi-test this hypothesis by looking at the set of DE genes between
+the two locations and compare that result to the Tumaco (and/or Cali)
+ethnicity comparison which is most representative of the ethnicity
+differences between them.  If I get it into my head to try this, I
+will need to load the DE tables from the
+03differential_expression_both.Rmd document; so I am most likely to
+try it out in the 07var_coef document, which was mostly written by
+Theresa and is already examining some similar questions.
 
 ## All samples
 
@@ -156,8 +283,8 @@ appropriate batch factor, perhaps visit?
 t_cf_clinical_de_sva <- all_pairwise(t_clinical, model_batch = "svaseq", filter = TRUE)
 t_cf_clinical_de_sva
 t_cf_clinical_table_sva <- combine_de_tables(
-  t_cf_clinical_de_sva, keepers = t_cf_contrast,
-  excel = glue("{cf_prefix}/All_Samples/t_clinical_cf_tables_sva-v{ver}.xlsx"))
+  t_cf_clinical_de_sva, keepers = cf_contrast,
+  excel = glue("{cf_prefix}/All_Samples/t_clinical_cf_table_sva-v{ver}.xlsx"))
 t_cf_clinical_table_sva
 t_cf_clinical_table_sva[["plots"]][["outcome"]][["deseq_ma_plots"]]
 t_cf_clinical_sig_sva <- extract_significant_genes(
@@ -169,43 +296,54 @@ dim(t_cf_clinical_sig_sva$deseq$ups[[1]])
 dim(t_cf_clinical_sig_sva$deseq$downs[[1]])
 ```
 
-## gProfiler search of all Tumaco samples
-
-The following gProfiler searches use the all_gprofiler() function
-instead of simple_gprofiler().  As a result, the results are separated
-by {contrast}_{direction}.  Thus 'outcome_down'.
-
-The same plots are available as the previous gProfiler searches, but
-in many of the following runs, I used the dotplot() function to get a
-slightly different view of the results.
+Repeat without the biopsies.
 
 ```{r}
-t_cf_clinical_gp <- all_gprofiler(t_cf_clinical_sig_sva)
-t_cf_clinical_gp
+t_cf_clinicalnb_de_sva <- all_pairwise(t_clinical_nobiop, model_batch = "svaseq", filter = TRUE)
+t_cf_clinicalnb_de_sva
+t_cf_clinicalnb_table_sva <- combine_de_tables(
+  t_cf_clinicalnb_de_sva, keepers = cf_contrast,
+  excel = glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_table_sva-v{ver}.xlsx"))
+t_cf_clinicalnb_table_sva
+t_cf_clinicalnb_table_sva[["plots"]][["outcome"]][["deseq_ma_plots"]]
+t_cf_clinicalnb_sig_sva <- extract_significant_genes(
+  t_cf_clinicalnb_table_sva,
+  excel = glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_sig_sva-v{ver}.xlsx"))
+t_cf_clinicalnb_sig_sva
 
-written <- write_gprofiler_data(
-  t_cf_clinical_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/clinical_cure_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_clinical_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/clinical_cure_down-v{ver}.xlsx"))
-## Wikipathways of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_up"]][["WP_enrich"]])
-
-## Transcription factor database of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_up"]][["TF_enrich"]])
-
-## Reactome of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_up"]][["REAC_enrich"]])
-
-## GO of the down c/f genes
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_down"]][["GO_enrich"]])
-t_cf_clinical_gp[["outcome_up"]][["pvalue_plots"]][["BP"]]
-
-## Reactome of the down c/f genes
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_down"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_clinical_gp[["outcome_up"]][["GO_enrich"]])
+dim(t_cf_clinicalnb_sig_sva$deseq$ups[[1]])
+dim(t_cf_clinicalnb_sig_sva$deseq$downs[[1]])
 ```
+
+As the data structure's name suggests, the above comparison seeks to
+learn if there are fail/cure differences discernable across all
+clinical celltypes in samples taken in Tumaco.
+
+The set of steps taken in this previous block will be essentially
+repeated for every set of contrasts and way of mixing/matching the
+data and follows the path:
+
+1.  Run all_pairwise to run deseq and friends using surogate estimates
+    provided by sva when appropriate/possible.  This creates an unwieldy
+    datastructure containing the results from all methods and all
+    contrasts as a series of nested lists.
+2.  Mash them together with combine_de_tables, use the 'keepers'
+    argument to define the desired numerators/denominators, and write
+    the tables to the file provided in the 'excel' argument.
+3.  Yank out the 'significant' genes and send them to a separate excel
+    document.  In all cases, 'significant' is the set with a |log2FC|
+    >= 1.0 and adjusted p-value <= 0.05.  This reminds me, one of the
+    reviewers mentioned a set of international guidelines for
+    significant genes, I thought I basically know what I am doing, but
+    this caught me completely unaware.  If anyone ever reads this (no
+    one will, let us be honest) I would love to know.  The closest
+    thing I found is: (@chungBestPracticesDifferential2021), but I do
+    not think it really addresses this idea (I have not yet read it
+    carefully).
+
+These datastructures are all exposed to various functions in hpgltools
+which allow one to poke/compare them; I am not a fan of Excel, but I
+think the xlsx documents creates are pretty decent, too.
 
 # Visit comparisons
 
@@ -227,52 +365,24 @@ tv1_vs_later_sig <- extract_significant_genes(
 tv1_vs_later_sig
 ```
 
-#### GSEA: V1 vs other visits.
-
-```{r}
-tv1later_gp <- all_gprofiler(tv1_vs_later_sig)
-tv1later_gp
-
-tv1later_gp[[1]]$pvalue_plots$BP
-tv1later_gp[[2]]$pvalue_plots$BP
-```
-
 # Sex comparison
 
 ```{r}
-t_sex <- subset_expt(tc_sex, subset = "clinic == 'Tumaco'")
+t_sex <- subset_expt(tc_sex, subset = "clinic == 'tumaco'")
 t_sex
 t_sex_de <- all_pairwise(t_sex, model_batch = "svaseq", filter = TRUE)
 t_sex_de
 t_sex_table <- combine_de_tables(
-  t_sex_de, excel = glue("{xlsx_prefix}/GSEA/t_sex_table-v{ver}.xlsx"))
+  t_sex_de, excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_sex_table-v{ver}.xlsx"))
 t_sex_table
 t_sex_sig <- extract_significant_genes(
-  t_sex_table, excel = glue("{xlsx_prefix}/GSEA/t_sex_sig-v{ver}.xlsx"))
+  t_sex_table, excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_sex_sig-v{ver}.xlsx"))
 t_sex_sig
-```
-
-#### GSEA: Comparing Tumaco M/F
-
-Let us see if we observe general male/female differences in the data.
-This has an important caveat: there are few female failures in the
-dataset and so the results may reflect that.
-
-```{r}
-t_sex_gp <- all_gprofiler(t_sex_sig)
-t_sex_gp
-
-written <- write_gprofiler_data(
-  t_sex_gp[[1]],
-  excel = glue("{xlsx_prefix}/GSEA/sex_female_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_sex_gp[[2]],
-  excel = glue("{xlsx_prefix}/GSEA/sex_male_up-v{ver}.xlsx"))
 ```
 
 ```{r}
 tc_sex_cure <- subset_expt(tc_sex, subset = "finaloutcome=='cure'")
-t_sex_cure <- subset_expt(tc_sex_cure, subset = "clinic == 'Tumaco'")
+t_sex_cure <- subset_expt(tc_sex_cure, subset = "clinic == 'tumaco'")
 
 t_sex_cure_de <- all_pairwise(t_sex_cure, model_batch = "svaseq", filter = TRUE)
 t_sex_cure_de
@@ -284,61 +394,19 @@ t_sex_cure_sig <- extract_significant_genes(
 t_sex_cure_sig
 ```
 
-##### GSEA: Tumaco comparisons of M/F
-
-```{r}
-t_sex_cure_gp <- all_gprofiler(t_sex_cure_sig)
-t_sex_cure_gp
-```
-
 # Ethnicity comparisons
 
 ```{r}
 t_ethnicity_de <- all_pairwise(t_etnia_expt, model_batch = "svaseq", filter = TRUE)
 t_ethnicity_de
 t_ethnicity_table <- combine_de_tables(
-  keepers = ethnicity_contrasts,
-  t_ethnicity_de, excel = glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_table-v{ver}.xlsx"))
+  t_ethnicity_de, keepers = ethnicity_contrasts,
+  excel = glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_table-v{ver}.xlsx"))
 t_ethnicity_table
 t_ethnicity_sig <- extract_significant_genes(
-  t_ethnicity_table, excel = glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_sig-v{ver}.xlsx"))
+  t_ethnicity_table, according_to = "deseq",
+  excel = glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_sig-v{ver}.xlsx"))
 t_ethnicity_sig
-```
-
-#### GSEA: Ethnicity differences
-
-Performed once with both clinics and again with only Tumaco.
-
-```{r}
-t_ethnicity_gp <- all_gprofiler(t_ethnicity_sig)
-t_ethnicity_gp
-
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[1]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_mi_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[2]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_mi_down-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[3]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_ma_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[4]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_ma_down-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[5]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_ia_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_ethnicity_gp[[6]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_ia_down-v{ver}.xlsx"))
-```
-
-#### GSEA: Ethnicity differences among cures
-
-```{r}
-written <- write_gprofiler_data(
-  t_ethnicity_gp[["indigenous_afrocol_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/ethnicity_afrocol_down-v{ver}.xlsx"))
 ```
 
 ### Separate the Tumaco data by visit
@@ -351,11 +419,12 @@ will therefore look at cure/fail from Tumaco at visit 1.
 #### Cure/Fail, Tumaco Visit 1
 
 ```{r}
-t_cf_clinical_v1_de_sva <- all_pairwise(tv1_samples, model_batch = "svaseq", filter = TRUE)
+t_cf_clinical_v1_de_sva <- all_pairwise(tv1_samples, model_batch = "svaseq", filter = TRUE,
+                                        parallel = FALSE)
 t_cf_clinical_v1_de_sva
 t_cf_clinical_v1_table_sva <- combine_de_tables(
-  t_cf_clinical_v1_de_sva, keepers = t_cf_contrast,
-  excel = glue("{cf_prefix}/Visits/t_clinical_v1_cf_tables_sva-v{ver}.xlsx"))
+  t_cf_clinical_v1_de_sva, keepers = cf_contrast,
+  excel = glue("{cf_prefix}/Visits/t_clinical_v1_cf_table_sva-v{ver}.xlsx"))
 t_cf_clinical_v1_table_sva
 t_cf_clinical_v1_sig_sva <- extract_significant_genes(
   t_cf_clinical_v1_table_sva,
@@ -364,19 +433,6 @@ t_cf_clinical_v1_sig_sva
 
 dim(t_cf_clinical_v1_sig_sva$deseq$ups[[1]])
 dim(t_cf_clinical_v1_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: V1 gProfiler comparison
-
-It looks like there are very few groups in the visit 1 significant genes.
-
-```{r}
-t_cf_clinical_v1_sig_sva_gp <- all_gprofiler(t_cf_clinical_v1_sig_sva)
-t_cf_clinical_v1_sig_sva_gp
-
-## Wikipathways of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_v1_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_clinical_v1_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
 ```
 
 #### Cure/Fail, Tumaco Visit 2
@@ -389,8 +445,8 @@ middle and end of treatment...
 t_cf_clinical_v2_de_sva <- all_pairwise(tv2_samples, model_batch = "svaseq", filter = TRUE)
 t_cf_clinical_v2_de_sva
 t_cf_clinical_v2_table_sva <- combine_de_tables(
-  t_cf_clinical_v2_de_sva, keepers = t_cf_contrast,
-  excel = glue("{cf_prefix}/Visits/t_clinical_v2_cf_tables_sva-v{ver}.xlsx"))
+  t_cf_clinical_v2_de_sva, keepers = cf_contrast,
+  excel = glue("{cf_prefix}/Visits/t_clinical_v2_cf_table_sva-v{ver}.xlsx"))
 t_cf_clinical_v2_table_sva
 t_cf_clinical_v2_sig_sva <- extract_significant_genes(
   t_cf_clinical_v2_table_sva,
@@ -399,116 +455,6 @@ t_cf_clinical_v2_sig_sva
 
 dim(t_cf_clinical_v2_sig_sva$deseq$ups[[1]])
 dim(t_cf_clinical_v2_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: Visit 2 gProfiler searches
-
-Up: 74 GO, 4 KEGG, 6 reactome, 4 WP, 56 TF, 1 miRNA, 0 HP/HPA/CORUM.
-Down:  19 GO, 1 KEGG, 1 HP, 2 HPA, 0 reactome/wp/tf/corum
-
-```{r}
-t_cf_clinical_v2_sig_sva_gp <- all_gprofiler(t_cf_clinical_v2_sig_sva)
-t_cf_clinical_v2_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_clinical_v2_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_v2_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_clinical_v2_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_v2_down-v{ver}.xlsx"))
-
-## Wikipathways of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_v2_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_clinical_v2_sig_sva_gp[["outcome_up"]][["REAC_enrich"]])
-enrichplot::dotplot(t_cf_clinical_v2_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
-
-enrichplot::dotplot(t_cf_clinical_v2_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-```
-
-#### Cure/Fail, Tumaco Visit 3
-
-```{r}
-t_cf_clinical_v3_de_sva <- all_pairwise(tv3_samples, model_batch = "svaseq", filter = TRUE)
-t_cf_clinical_v3_de_sva
-t_cf_clinical_v3_table_sva <- combine_de_tables(
-  t_cf_clinical_v3_de_sva, keepers = t_cf_contrast,
-  excel = glue("{cf_prefix}/Visits/t_clinical_v3_cf_tables_sva-v{ver}.xlsx"))
-t_cf_clinical_v3_table_sva
-t_cf_clinical_v3_sig_sva <- extract_significant_genes(
-  t_cf_clinical_v3_table_sva,
-  excel = glue("{cf_prefix}/Visits/t_clinical_v3_cf_sig_sva-v{ver}.xlsx"))
-t_cf_clinical_v3_sig_sva
-
-dim(t_cf_clinical_v3_sig_sva$deseq$ups[[1]])
-dim(t_cf_clinical_v3_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: Visit 3 gProfiler searches
-
-Up: 120 genes; 141 GO, 1 KEGG, 5 Reactome, 2 WP, 30 TF, 1 miRNA, 0 HPA/CORUM/HP
-Down: 62 genes; 30 GO, 2 KEGG, 1 Reactome, 0 WP/TF/miRNA/HPA/CORUM/HP,
-
-```{r}
-t_cf_clinical_v3_sig_sva_gp <- all_gprofiler(t_cf_clinical_v3_sig_sva)
-t_cf_clinical_v3_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_clinical_v3_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_v3_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_clinical_v3_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_v3_down-v{ver}.xlsx"))
-
-## Wikipathways of the up c/f genes
-enrichplot::dotplot(t_cf_clinical_v3_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_clinical_v3_sig_sva_gp[["outcome_up"]][["REAC_enrich"]])
-enrichplot::dotplot(t_cf_clinical_v3_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
-
-enrichplot::dotplot(t_cf_clinical_v3_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-```
-
-### Repeat no biopsies
-
-The biopsy samples are problematic for a few reasons, so let us repeat
-without them.
-
-```{r}
-t_cf_clinical_nobiop_de_sva <- all_pairwise(t_clinical_nobiop,
-                                            model_batch = "svaseq", filter = TRUE)
-t_cf_clinical_nobiop_de_sva
-t_cf_clinical_nobiop_table_sva <- combine_de_tables(
-  t_cf_clinical_nobiop_de_sva, keepers = t_cf_contrast,
-  excel = glue("{cf_prefix}/No_Biopsies/t_clinical_nobiop_cf_tables_sva-v{ver}.xlsx"))
-t_cf_clinical_nobiop_table_sva
-t_cf_clinical_nobiop_sig_sva <- extract_significant_genes(
-  t_cf_clinical_nobiop_table_sva,
-  excel = glue("{cf_prefix}/No_Biopsies/t_clinical_nobiop_cf_sig_sva-v{ver}.xlsx"))
-t_cf_clinical_nobiop_sig_sva
-
-dim(t_cf_clinical_nobiop_sig_sva$deseq$ups[[1]])
-dim(t_cf_clinical_nobiop_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: gProfiler of clinical samples without biopsies
-
-Up: 137 genes; 88 GO, 0 KEGG, 6 Reactome, 1 WP, 46 TF, 1 miRNA, 0 others
-Down: 73 genes; 78 GO, 1 KEGG, 1 Reactome, 9 TF, 0 others
-
-```{r}
-t_cf_clinical_nobiop_sig_sva_gp <- all_gprofiler(t_cf_clinical_nobiop_sig_sva)
-t_cf_clinical_nobiop_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_clinical_nobiop_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_nobiop_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_clinical_nobiop_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_clinical_nobiop_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_clinical_nobiop_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_clinical_nobiop_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
-
-enrichplot::dotplot(t_cf_clinical_nobiop_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
 ```
 
 ### By cell type
@@ -523,8 +469,8 @@ differences in the response for people who did(not) respond well.
 t_cf_biopsy_de_sva <- all_pairwise(t_biopsies, model_batch = "svaseq", filter = TRUE)
 t_cf_biopsy_de_sva
 t_cf_biopsy_table_sva <- combine_de_tables(
-  t_cf_biopsy_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Biopsies/t_biopsy_cf_tables_sva-v{ver}.xlsx"))
+  t_cf_biopsy_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Biopsies/t_biopsy_cf_table_sva-v{ver}.xlsx"))
 t_cf_biopsy_table_sva
 t_cf_biopsy_sig_sva <- extract_significant_genes(
   t_cf_biopsy_table_sva,
@@ -533,30 +479,6 @@ t_cf_biopsy_sig_sva
 
 dim(t_cf_biopsy_sig_sva$deseq$ups[[1]])
 dim(t_cf_biopsy_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: gProfiler Biopsies
-
-Up: 17 genes; 74 GO, 3 KEGG, 1 Reactome, 3 WP, 1 TF, 0 others
-Down: 11 genes; 2 GO, 0 others
-
-FIXME: Add write_gprofiler_data() to other stanzas.
-
-```{r}
-t_cf_biopsy_sig_sva_gp <- all_gprofiler(t_cf_biopsy_sig_sva)
-t_cf_biopsy_sig_sva_gp
-
-t_cf_biopsy_gp_up_written <- write_gprofiler_data(
-  t_cf_biopsy_sig_sva_gp[[1]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_biopsy_sig_sva_up.xlsx"))
-t_cf_biopsy_gp_down_written <- write_gprofiler_data(
-  t_cf_biopsy_sig_sva_gp[[2]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_biopsy_sig_sva_down.xlsx"))
-
-enrichplot::dotplot(t_cf_biopsy_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_biopsy_sig_sva_gp[["outcome_up"]][["WP_enrich"]])
-
-enrichplot::dotplot(t_cf_biopsy_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
 ```
 
 #### Cure/Fail, Monocytes
@@ -569,12 +491,12 @@ batch factor.
 t_cf_monocyte_de_sva <- all_pairwise(t_monocytes, model_batch = "svaseq",
                                      filter = TRUE)
 t_cf_monocyte_de_sva
-t_cf_monocyte_tables_sva <- combine_de_tables(
-  t_cf_monocyte_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_tables_sva-v{ver}.xlsx"))
-t_cf_monocyte_tables_sva
+t_cf_monocyte_table_sva <- combine_de_tables(
+  t_cf_monocyte_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_table_sva-v{ver}.xlsx"))
+t_cf_monocyte_table_sva
 t_cf_monocyte_sig_sva <- extract_significant_genes(
-  t_cf_monocyte_tables_sva,
+  t_cf_monocyte_table_sva,
   excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_sig_sva-v{ver}.xlsx"))
 t_cf_monocyte_sig_sva
 
@@ -583,12 +505,12 @@ dim(t_cf_monocyte_sig_sva$deseq$downs[[1]])
 
 t_cf_monocyte_de_batchvisit <- all_pairwise(t_monocytes, model_batch = TRUE, filter = TRUE)
 t_cf_monocyte_de_batchvisit
-t_cf_monocyte_tables_batchvisit <- combine_de_tables(
-  t_cf_monocyte_de_batchvisit, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_tables_batchvisit-v{ver}.xlsx"))
-t_cf_monocyte_tables_batchvisit
+t_cf_monocyte_table_batchvisit <- combine_de_tables(
+  t_cf_monocyte_de_batchvisit, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_table_batchvisit-v{ver}.xlsx"))
+t_cf_monocyte_table_batchvisit
 t_cf_monocyte_sig_batchvisit <- extract_significant_genes(
-  t_cf_monocyte_tables_batchvisit,
+  t_cf_monocyte_table_batchvisit,
   excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_sig_batchvisit-v{ver}.xlsx"))
 t_cf_monocyte_sig_batchvisit
 
@@ -596,41 +518,120 @@ dim(t_cf_monocyte_sig_batchvisit$deseq$ups[[1]])
 dim(t_cf_monocyte_sig_batchvisit$deseq$downs[[1]])
 ```
 
-##### GSEA: gProfiler Monocytes
+##### Repeat test of different models: Monocytes
 
-Now that I am looking back over these results, I am not compeltely
-certain why I only did the gprofiler search for the sva data...
-
-Up: 60 genes; 12 GO, 1 KEGG, 1 WP, 4 TF, 0 others
-Down: 53 genes; 26 GO, 1 KEGG, 1 Reactome, 2 TF, 0 others
+Either above or below this section I have a nearly identical block
+which seeks to demonstrate the similarities/difference observed
+between my preferred/simplified model vs. a more explicitly correct
+and complex model.  If the trend holds from what we observed with the
+eosinophils and neutrophils, I would expect to see that the results
+are marginally 'better' (as defined by the strength of the perceived
+interleukin response and raw number of 'significant' genes); but I
+remain worried that this will prove a more brittle and error-prone
+analysis.
 
 ```{r}
-t_cf_monocyte_sig_sva_gp <- all_gprofiler(t_cf_monocyte_sig_sva)
-t_cf_monocyte_sig_sva_gp
+## The original pairwise invocation with sva:
+#t_cf_monocyte_de_sva <- all_pairwise(t_monocyte, model_batch = "svaseq",
+#                                     filter = TRUE, parallel=FALSE)
+test_monocytes <- normalize_expt(t_monocytes, filter = "simple")
+test_mono_design <- pData(test_monocytes)
+test_formula <- as.formula("~ 0 + finaloutcome + visitnumber")
+test_model <- model.matrix(test_formula, data = test_mono_design)
+null_formula <- as.formula("~ 0 + visitnumber")
+null_model <- model.matrix(null_formula, data = test_mono_design)
 
-written <- write_gprofiler_data(
-  t_cf_monocyte_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_monocyte_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_down-v{ver}.xlsx"))
+linear_mtrx <- exprs(test_monocytes)
+l2_mtrx <- log2(linear_mtrx + 1)
+chosen_surrogates <- sva::num.sv(dat = l2_mtrx, mod = test_model)
 
-enrichplot::dotplot(t_cf_monocyte_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_monocyte_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
+surrogate_result <- sva::svaseq(
+  dat = linear_mtrx, n.sv = chosen_surrogates, mod = test_model, mod0 = null_model)
+model_adjust <- as.matrix(surrogate_result[["sv"]])
 
-enrichplot::dotplot(t_cf_monocyte_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
+colnames(model_adjust) <- c("SV1", "SV2", "SV3")
+rownames(model_adjust) <- rownames(pData(test_monocytes))
+longer_model <- as.formula("~ finaloutcome + visitnumber + SV1 + SV2 + SV3")
+mono_design_svs <- cbind(test_mono_design, model_adjust)
+summarized <- DESeq2::DESeqDataSetFromMatrix(countData = linear_mtrx,
+                                             colData = mono_design_svs,
+                                             design = longer_model)
+deseq_run <- DESeq2::DESeq(summarized)
+deseq_table <- as.data.frame(DESeq2::results(object = deseq_run,
+                                             contrast = c("finaloutcome", "failure", "cure"),
+                                             format = "DataFrame"))
 
-t_cf_monocyte_sig_batch_gp <- all_gprofiler(t_cf_monocyte_sig_batchvisit)
-t_cf_monocyte_sig_batch_gp
+big_table <- t_cf_monocyte_table_sva[["data"]][["outcome"]]
+only_deseq <- big_table[, c("deseq_logfc", "deseq_adjp")]
+merged <- merge(deseq_table, only_deseq, by = "row.names")
+rownames(merged) <- merged[["Row.names"]]
+merged[["Row.names"]] <- NULL
 
-written <- write_gprofiler_data(
-  t_cf_monocyte_sig_batch_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_batch_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_monocyte_sig_batch_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_batch_down-v{ver}.xlsx"))
-enrichplot::dotplot(t_cf_monocyte_sig_batch_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_monocyte_sig_batch_gp[["outcome_up"]][["HP_enrich"]])
+cor_value <- cor.test(merged[["log2FoldChange"]], merged[["deseq_logfc"]])
+cor_value
+logfc_plotter <- plot_linear_scatter(merged[, c("log2FoldChange", "deseq_logfc")])
+logfc_plot <- logfc_plotter[["scatter"]] +
+  xlab("DESeq2 log2FC: Visit explicitly in model") +
+  ylab("DESeq2 log2FC: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
+pp(file = "images/compare_cf_and_visit_in_model_monocyte_logfc.svg")
+logfc_plot
+dev.off()
+logfc_plot
+
+cor_value <- cor.test(merged[["padj"]], merged[["deseq_adjp"]], method = "spearman")
+cor_value
+adjp_plotter <- plot_linear_scatter(merged[, c("padj", "deseq_adjp")])
+adjp_plot <- adjp_plotter[["scatter"]] +
+  xlab("DESeq2 adjp: Visit explicitly in model") +
+  ylab("DESeq2 adjp: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (spearman)"))
+pp(file = "images/compare_cf_and_visit_in_model_monocyte_adjp.svg")
+adjp_plot
+dev.off()
+adjp_plot
+
+previous_sig_idx <- big_table[["deseq_adjp"]] <= 0.05 & abs(big_table[["deseq_logfc"]] >= 1.0)
+summary(previous_sig_idx)
+previous_genes <- rownames(big_table)[previous_sig_idx]
+
+new_sig_idx <- abs(deseq_table[["log2FoldChange"]]) >= 1.0 & deseq_table[["padj"]] < 0.05
+new_genes <- rownames(deseq_table)[new_sig_idx]
+na_idx <- is.na(new_genes)
+new_genes <- new_genes[!na_idx]
+
+Vennerable::Venn(list("previous" = previous_genes, "new" = new_genes))
+
+test_new <- simple_gprofiler(new_genes)
+test_new
+test_old <- simple_gprofiler(previous_genes)
+test_old
+
+new_annotated <- merge(fData(t_monocytes), deseq_table, by = "row.names")
+rownames(new_annotated) <- new_annotated[["Row.names"]]
+new_annotated[["Row.names"]] <- NULL
+write_xlsx(data = new_annotated, excel = "excel/monocyte_visit_in_model_sva_cf_new.xlsx")
+
+old_annotated <- merge(fData(t_eosinophils), big_table, by = "row.names")
+rownames(old_annotated) <- old_annotated[["Row.names"]]
+old_annotated[["Row.names"]] <- NULL
+write_xlsx(data = old_annotated, excel = "excel/monocyte_visit_in_model_sva_cf_old.xlsx")
+```
+
+# Test some code to do this automagically
+
+I think I implemented some changes to my toys which make them able to
+set up appropriate models and contrasts for arbitrarily chosen models
+instead of only my simplified version.  Let us test that here!
+
+```{r, eval=FALSE}
+tt = normalize_expt(t_monocytes, transform = "log2", convert = "cpm",
+                    filter = TRUE, batch = "svaseq")
+
+t_monocyte_cf_visit_sva_de <- all_pairwise(t_monocytes, model_batch = "svaseq",
+                                           alt_model = "~ 0 + finaloutcome + visitnumber",
+                                           null_model = "~ 0 + visitnumber", filter = TRUE,
+                                           parallel = FALSE)
 ```
 
 ### Individual visits, Monocytes
@@ -642,12 +643,12 @@ Now focus in on the monocyte samples on a per-visit basis.
 ```{r}
 t_cf_monocyte_v1_de_sva <- all_pairwise(tv1_monocytes, model_batch = "svaseq", filter = TRUE)
 t_cf_monocyte_v1_de_sva
-t_cf_monocyte_v1_tables_sva <- combine_de_tables(
-  t_cf_monocyte_v1_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_tables_sva-v{ver}.xlsx"))
-t_cf_monocyte_v1_tables_sva
+t_cf_monocyte_v1_table_sva <- combine_de_tables(
+  t_cf_monocyte_v1_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_table_sva-v{ver}.xlsx"))
+t_cf_monocyte_v1_table_sva
 t_cf_monocyte_v1_sig_sva <- extract_significant_genes(
-  t_cf_monocyte_v1_tables_sva,
+  t_cf_monocyte_v1_table_sva,
   excel = glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_sig_sva-v{ver}.xlsx"))
 t_cf_monocyte_v1_sig_sva
 
@@ -655,86 +656,18 @@ dim(t_cf_monocyte_v1_sig_sva$deseq$ups[[1]])
 dim(t_cf_monocyte_v1_sig_sva$deseq$downs[[1]])
 ```
 
-##### GSEA: gProfiler Monocytes by visit, V1
-
-V1: Up: 14 genes; No categories
-V1: Down: 52 genes; 20 GO, 5 TF
-
-```{r}
-t_cf_monocyte_v1_sig_sva_gp <- all_gprofiler(t_cf_monocyte_v1_sig_sva)
-t_cf_monocyte_v1_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_monocyte_v1_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_v1_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_monocyte_v1_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_monocyte_v1_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_monocyte_v1_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-```
-
-#### Visit 2
-
-```{r}
-t_cf_monocyte_v2_de_sva <- all_pairwise(tv2_monocytes, model_batch = "svaseq", filter = TRUE)
-t_cf_monocyte_v2_de_sva
-t_cf_monocyte_v2_tables_sva <- combine_de_tables(
-  t_cf_monocyte_v2_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v2_cf_tables_sva-v{ver}.xlsx"))
-t_cf_monocyte_v2_tables_sva
-t_cf_monocyte_v2_sig_sva <- extract_significant_genes(
-  t_cf_monocyte_v2_tables_sva,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v2_cf_sig_sva-v{ver}.xlsx"))
-t_cf_monocyte_v2_sig_sva
-
-dim(t_cf_monocyte_v2_sig_sva$deseq$ups[[1]])
-dim(t_cf_monocyte_v2_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: gProfiler Monocytes by visit V1
-
-Insufficient data to use in gProfiler.
-
-V2: Up: 1 gene
-V2: Down: 0 genes.
-
-
-#### Visit 3
-
-```{r}
-t_cf_monocyte_v3_de_sva <- all_pairwise(tv3_monocytes, model_batch = "svaseq", filter = TRUE)
-t_cf_monocyte_v3_de_sva
-t_cf_monocyte_v3_tables_sva <- combine_de_tables(
-  t_cf_monocyte_v3_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v3_cf_tables_sva-v{ver}.xlsx"))
-t_cf_monocyte_v3_tables_sva
-t_cf_monocyte_v3_sig_sva <- extract_significant_genes(
-  t_cf_monocyte_v3_tables_sva,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_v3_cf_sig_sva-v{ver}.xlsx"))
-t_cf_monocyte_v3_sig_sva
-
-dim(t_cf_monocyte_v3_sig_sva$deseq$ups[[1]])
-dim(t_cf_monocyte_v3_sig_sva$deseq$downs[[1]])
-```
-
-##### GSEA: gProfiler Monocytes by visit, V3
-
-V3: Up: 4 genes.
-V3: Down: 0 genes.
-
 #### Monocytes: Compare sva to batch-in-model
 
 ```{r}
-sva_aucc <- calculate_aucc(t_cf_monocyte_tables_sva[["data"]][[1]],
-                           tbl2 = t_cf_monocyte_tables_batchvisit[["data"]][[1]],
+sva_aucc <- calculate_aucc(t_cf_monocyte_table_sva[["data"]][[1]],
+                           tbl2 = t_cf_monocyte_table_batchvisit[["data"]][[1]],
                            py = "deseq_adjp", ly = "deseq_logfc")
 sva_aucc
 
-shared_ids <- rownames(t_cf_monocyte_tables_sva[["data"]][[1]]) %in%
-  rownames(t_cf_monocyte_tables_batchvisit[["data"]][[1]])
-first <- t_cf_monocyte_tables_sva[["data"]][[1]][shared_ids, ]
-second <- t_cf_monocyte_tables_batchvisit[["data"]][[1]][rownames(first), ]
+shared_ids <- rownames(t_cf_monocyte_table_sva[["data"]][[1]]) %in%
+  rownames(t_cf_monocyte_table_batchvisit[["data"]][[1]])
+first <- t_cf_monocyte_table_sva[["data"]][[1]][shared_ids, ]
+second <- t_cf_monocyte_table_batchvisit[["data"]][[1]][rownames(first), ]
 cor.test(first[["deseq_logfc"]], second[["deseq_logfc"]])
 ```
 
@@ -746,12 +679,12 @@ using SVA and visit as a batch factor.
 ```{r}
 t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq", filter = TRUE)
 t_cf_neutrophil_de_sva
-t_cf_neutrophil_tables_sva <- combine_de_tables(
-  t_cf_neutrophil_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_tables_sva-v{ver}.xlsx"))
-t_cf_neutrophil_tables_sva
+t_cf_neutrophil_table_sva <- combine_de_tables(
+  t_cf_neutrophil_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_table_sva
 t_cf_neutrophil_sig_sva <- extract_significant_genes(
-  t_cf_neutrophil_tables_sva,
+  t_cf_neutrophil_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_sig_sva-v{ver}.xlsx"))
 t_cf_neutrophil_sig_sva
 
@@ -760,12 +693,12 @@ dim(t_cf_neutrophil_sig_sva$deseq$downs[[1]])
 
 t_cf_neutrophil_de_batchvisit <- all_pairwise(t_neutrophils, model_batch = TRUE, filter = TRUE)
 t_cf_neutrophil_de_batchvisit
-t_cf_neutrophil_tables_batchvisit <- combine_de_tables(
-  t_cf_neutrophil_de_batchvisit, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_tables_batchvisit-v{ver}.xlsx"))
-t_cf_neutrophil_tables_batchvisit
+t_cf_neutrophil_table_batchvisit <- combine_de_tables(
+  t_cf_neutrophil_de_batchvisit, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_table_batchvisit-v{ver}.xlsx"))
+t_cf_neutrophil_table_batchvisit
 t_cf_neutrophil_sig_batchvisit <- extract_significant_genes(
-  t_cf_neutrophil_tables_batchvisit,
+  t_cf_neutrophil_table_batchvisit,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_sig_batchvisit-v{ver}.xlsx"))
 t_cf_neutrophil_sig_batchvisit
 
@@ -773,27 +706,117 @@ dim(t_cf_neutrophil_sig_batchvisit$deseq$ups[[1]])
 dim(t_cf_neutrophil_sig_batchvisit$deseq$downs[[1]])
 ```
 
-##### GSEA: gProfiler Neutrophils
+Let us add a new block in which we test a concern: if we explicitly
+add visit to the model (with sva, potentially without too), will that
+change the results we observe?  My assumption is that it should change
+the results very minimally; but we should make absolutely certain that
+this is true.  The neutrophils are the place to test this first
+because they have some of the most variance observed in the data.
 
-Up: 84 genes; 5 GO, 2 Reactome, 3 TF, no others.
-Down: 29 genes: 12 GO, 1 Reactome, 1 TF, 1 miRNA, 11 HP, 0 others
+Therefore I want to have an instance of the pairwise contrast that has
+a model of ~ finaloutcome + visitnumber + SVs where the SVs come from
+an invocation of sva which also has finaloutcome + visitnumber before
+the null model.
+
+In theory, all_pairwise() is able to do this via the argument
+alt_model, but it may be safer to do it manually in order to
+absolutely ensure that nothing unintended happens.
 
 ```{r}
-t_cf_neutrophil_sig_sva_gp <- all_gprofiler(t_cf_neutrophil_sig_sva)
-t_cf_neutrophil_sig_sva_gp
+## The original pairwise invocation with sva:
+## t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq", filter = TRUE)
+test_neutrophils <- normalize_expt(t_neutrophils, filter = "simple")
+test_neut_design <- pData(test_neutrophils)
+test_formula <- as.formula("~ 0 + finaloutcome + visitnumber")
+test_model <- model.matrix(test_formula, data = test_neut_design)
+## Note to self: double-check that the following line is correct.
+null_formula <- as.formula("~ 0 + visitnumber")
+## null_model <- test_model[, c(1, 2)]
+null_model <- model.matrix(null_formula, data = test_neut_design)
 
-written <- write_gprofiler_data(
-  t_cf_neutrophil_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_neutrophil_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_neutrophil_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_neutrophil_down-v{ver}.xlsx"))
+linear_mtrx <- exprs(test_neutrophils)
+l2_mtrx <- log2(linear_mtrx + 1)
+chosen_surrogates <- sva::num.sv(dat = l2_mtrx, mod = test_model)
 
-enrichplot::dotplot(t_cf_neutrophil_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_neutrophil_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
+surrogate_result <- sva::svaseq(
+  dat = linear_mtrx, n.sv = chosen_surrogates, mod = test_model, mod0 = null_model)
+model_adjust <- as.matrix(surrogate_result[["sv"]])
 
-enrichplot::dotplot(t_cf_neutrophil_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-## enrichplot::dotplot(t_cf_neutrophil_sig_sva_gp[["outcome_down"]][["HP_enrich"]])
+## I don't think the following is actually required, but it is weird to just have this
+## unnamed matrix hangingout.
+## Set the columns to the SV#s
+colnames(model_adjust) <- c("SV1", "SV2", "SV3", "SV4")
+## Set the rows the sample IDs
+rownames(model_adjust) <- rownames(pData(test_neutrophils))
+
+longer_model <- as.formula("~ finaloutcome + visitnumber + SV1 + SV2 + SV3 + SV4")
+neut_design_svs <- cbind(test_neut_design, model_adjust)
+summarized <- DESeq2::DESeqDataSetFromMatrix(countData = linear_mtrx,
+                                             colData = neut_design_svs,
+                                             design = longer_model)
+deseq_run <- DESeq2::DESeq(summarized)
+deseq_table <- as.data.frame(DESeq2::results(object = deseq_run,
+                                             contrast = c("finaloutcome", "failure", "cure"),
+                                             format = "DataFrame"))
+
+## We should be able to directly compare this to the the deseq columns from the above
+## data structure named: t_cf_neutrophil_table_sva
+
+big_table <- t_cf_neutrophil_table_sva[["data"]][["outcome"]]
+only_deseq <- big_table[, c("deseq_logfc", "deseq_adjp")]
+merged <- merge(deseq_table, only_deseq, by = "row.names")
+rownames(merged) <- merged[["Row.names"]]
+merged[["Row.names"]] <- NULL
+
+cor_value <- cor.test(merged[["log2FoldChange"]], merged[["deseq_logfc"]])
+cor_value
+logfc_plotter <- plot_linear_scatter(merged[, c("log2FoldChange", "deseq_logfc")])
+logfc_plot <- logfc_plotter[["scatter"]] +
+  xlab("DESeq2 log2FC: Visit explicitly in model") +
+  ylab("DESeq2 log2FC: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
+pp(file = "images/compare_cf_and_visit_in_model_neutrophil_logfc.svg")
+logfc_plot
+dev.off()
+logfc_plot
+
+cor_value <- cor.test(merged[["padj"]], merged[["deseq_adjp"]], method = "spearman")
+cor_value
+adjp_plotter <- plot_linear_scatter(merged[, c("padj", "deseq_adjp")])
+adjp_plot <- adjp_plotter[["scatter"]] +
+  xlab("DESeq2 adjp: Visit explicitly in model") +
+  ylab("DESeq2 adjp: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (spearman)"))
+pp(file = "images/compare_cf_and_visit_in_model_neutrophil_adjp.svg")
+adjp_plot
+dev.off()
+adjp_plot
+
+previous_sig_idx <- big_table[["deseq_adjp"]] <= 0.05 & abs(big_table[["deseq_logfc"]] >= 1.0)
+summary(previous_sig_idx)
+previous_genes <- rownames(big_table)[previous_sig_idx]
+
+new_sig_idx <- abs(deseq_table[["log2FoldChange"]]) >= 1.0 & deseq_table[["padj"]] < 0.05
+new_genes <- rownames(deseq_table)[new_sig_idx]
+na_idx <- is.na(new_genes)
+new_genes <- new_genes[!na_idx]
+
+Vennerable::Venn(list("previous" = previous_genes, "new" = new_genes))
+
+test_new <- simple_gprofiler(new_genes)
+test_new
+test_old <- simple_gprofiler(previous_genes)
+test_old
+
+new_annotated <- merge(fData(t_neutrophils), deseq_table, by = "row.names")
+rownames(new_annotated) <- new_annotated[["Row.names"]]
+new_annotated[["Row.names"]] <- NULL
+write_xlsx(data = new_annotated, excel = "excel/neutrophil_visit_in_model_sva_cf_new.xlsx")
+
+old_annotated <- merge(fData(t_neutrophils), big_table, by = "row.names")
+rownames(old_annotated) <- old_annotated[["Row.names"]]
+old_annotated[["Row.names"]] <- NULL
+write_xlsx(data = old_annotated, excel = "excel/neutrophil_visit_in_model_sva_cf_old.xlsx")
 ```
 
 #### Neutrophils by visit
@@ -809,12 +832,12 @@ t_neutrophil_visitcf <- set_expt_conditions(t_neutrophils, fact=visitcf_factor)
 t_cf_neutrophil_visits_de_sva <- all_pairwise(t_neutrophil_visitcf, model_batch = "svaseq",
                                               filter = TRUE)
 t_cf_neutrophil_visits_de_sva
-t_cf_neutrophil_visits_tables_sva <- combine_de_tables(
+t_cf_neutrophil_visits_table_sva <- combine_de_tables(
   t_cf_neutrophil_visits_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_tables_sva-v{ver}.xlsx"))
-t_cf_neutrophil_visits_tables_sva
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_visits_table_sva
 t_cf_neutrophil_visits_sig_sva <- extract_significant_genes(
-  t_cf_neutrophil_visits_tables_sva,
+  t_cf_neutrophil_visits_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_sig_sva-v{ver}.xlsx"))
 t_cf_neutrophil_visits_sig_sva
 
@@ -823,12 +846,12 @@ dim(t_cf_neutrophil_visits_sig_sva$deseq$downs[[1]])
 
 t_cf_neutrophil_v1_de_sva <- all_pairwise(tv1_neutrophils, model_batch = "svaseq", filter = TRUE)
 t_cf_neutrophil_v1_de_sva
-t_cf_neutrophil_v1_tables_sva <- combine_de_tables(
-  t_cf_neutrophil_v1_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_tables_sva-v{ver}.xlsx"))
-t_cf_neutrophil_v1_tables_sva
+t_cf_neutrophil_v1_table_sva <- combine_de_tables(
+  t_cf_neutrophil_v1_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_v1_table_sva
 t_cf_neutrophil_v1_sig_sva <- extract_significant_genes(
-  t_cf_neutrophil_v1_tables_sva,
+  t_cf_neutrophil_v1_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_sig_sva-v{ver}.xlsx"))
 t_cf_neutrophil_v1_sig_sva
 
@@ -837,13 +860,13 @@ dim(t_cf_neutrophil_v1_sig_sva$deseq$downs[[1]])
 
 t_cf_neutrophil_v2_de_sva <- all_pairwise(tv2_neutrophils, model_batch = "svaseq", filter = TRUE)
 t_cf_neutrophil_v2_de_sva
-t_cf_neutrophil_v2_tables_sva <- combine_de_tables(
+t_cf_neutrophil_v2_table_sva <- combine_de_tables(
   t_cf_neutrophil_v2_de_sva,
-  keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v2_cf_tables_sva-v{ver}.xlsx"))
-t_cf_neutrophil_v2_tables_sva
+  keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v2_cf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_v2_table_sva
 t_cf_neutrophil_v2_sig_sva <- extract_significant_genes(
-  t_cf_neutrophil_v2_tables_sva,
+  t_cf_neutrophil_v2_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v2_cf_sig_sva-v{ver}.xlsx"))
 t_cf_neutrophil_v2_sig_sva
 
@@ -852,12 +875,12 @@ dim(t_cf_neutrophil_v2_sig_sva$deseq$downs[[1]])
 
 t_cf_neutrophil_v3_de_sva <- all_pairwise(tv3_neutrophils, model_batch = "svaseq", filter = TRUE)
 t_cf_neutrophil_v3_de_sva
-t_cf_neutrophil_v3_tables_sva <- combine_de_tables(
-  t_cf_neutrophil_v3_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v3_cf_tables_sva-v{ver}.xlsx"))
-t_cf_neutrophil_v3_tables_sva
+t_cf_neutrophil_v3_table_sva <- combine_de_tables(
+  t_cf_neutrophil_v3_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v3_cf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_v3_table_sva
 t_cf_neutrophil_v3_sig_sva <- extract_significant_genes(
-  t_cf_neutrophil_v3_tables_sva,
+  t_cf_neutrophil_v3_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_v3_cf_sig_sva-v{ver}.xlsx"))
 t_cf_neutrophil_v3_sig_sva
 
@@ -865,43 +888,18 @@ dim(t_cf_neutrophil_v3_sig_sva$deseq$ups[[1]])
 dim(t_cf_monocyte_v3_sig_sva$deseq$downs[[1]])
 ```
 
-##### GSEA: gProfiler Neutrophils V1
-
-V1: Up: 5 genes
-V1: Down: 8 genes; 14 GO.
-
-```{r}
-t_cf_neutrophil_v1_sig_sva_gp <- all_gprofiler(t_cf_neutrophil_v1_sig_sva)
-t_cf_neutrophil_v1_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_neutrophil_v1_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_neutrophil_v1_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_neutrophil_v1_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_neutrophil_v1_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_neutrophil_v1_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-```
-
-##### GSEA: gProfiler Neutrophils by visit, V2
-
-Up: 5 genes; 3 GO, 10 TF.
-Down: 1 gene.
-
-
 #### Neutrophils: Compare sva to batch-in-model
 
 ```{r}
-sva_aucc <- calculate_aucc(t_cf_neutrophil_tables_sva[["data"]][[1]],
-                           tbl2 = t_cf_neutrophil_tables_batchvisit[["data"]][[1]],
+sva_aucc <- calculate_aucc(t_cf_neutrophil_table_sva[["data"]][[1]],
+                           tbl2 = t_cf_neutrophil_table_batchvisit[["data"]][[1]],
                            py = "deseq_adjp", ly = "deseq_logfc")
 sva_aucc
 
-shared_ids <- rownames(t_cf_neutrophil_tables_sva[["data"]][[1]]) %in%
-  rownames(t_cf_neutrophil_tables_batchvisit[["data"]][[1]])
-first <- t_cf_neutrophil_tables_sva[["data"]][[1]][shared_ids, ]
-second <- t_cf_neutrophil_tables_batchvisit[["data"]][[1]][rownames(first), ]
+shared_ids <- rownames(t_cf_neutrophil_table_sva[["data"]][[1]]) %in%
+  rownames(t_cf_neutrophil_table_batchvisit[["data"]][[1]])
+first <- t_cf_neutrophil_table_sva[["data"]][[1]][shared_ids, ]
+second <- t_cf_neutrophil_table_batchvisit[["data"]][[1]][rownames(first), ]
 cor.test(first[["deseq_logfc"]], second[["deseq_logfc"]])
 ```
 
@@ -913,32 +911,46 @@ eosinophil samples.
 ```{r}
 t_cf_eosinophil_de_sva <- all_pairwise(t_eosinophils, model_batch = "svaseq", filter = TRUE)
 t_cf_eosinophil_de_sva
-t_cf_eosinophil_tables_sva <- combine_de_tables(
-  t_cf_eosinophil_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_tables_sva-v{ver}.xlsx"))
-t_cf_eosinophil_tables_sva
+t_cf_eosinophil_table_sva <- combine_de_tables(
+  t_cf_eosinophil_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_table_sva
 t_cf_eosinophil_sig_sva <- extract_significant_genes(
-  t_cf_eosinophil_tables_sva,
+  t_cf_eosinophil_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_sig_sva-v{ver}.xlsx"))
 t_cf_eosinophil_sig_sva
 
 dim(t_cf_eosinophil_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_sig_sva$deseq$downs[[1]])
 
+knitr::kable(head(t_cf_eosinophil_sig_sva$deseq$ups[[1]]))
+knitr::kable(head(t_cf_eosinophil_sig_sva$deseq$downs[[1]]))
+```
+
+Repeat with batch in the model.
+
+```{r}
 t_cf_eosinophil_de_batchvisit <- all_pairwise(t_eosinophils, model_batch = TRUE, filter = TRUE)
 t_cf_eosinophil_de_batchvisit
-t_cf_eosinophil_tables_batchvisit <- combine_de_tables(
-  t_cf_eosinophil_de_batchvisit, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_tables_batchvisit-v{ver}.xlsx"))
-t_cf_eosinophil_tables_batchvisit
+t_cf_eosinophil_table_batchvisit <- combine_de_tables(
+  t_cf_eosinophil_de_batchvisit, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_table_batchvisit-v{ver}.xlsx"))
+t_cf_eosinophil_table_batchvisit
 t_cf_eosinophil_sig_batchvisit <- extract_significant_genes(
-  t_cf_eosinophil_tables_batchvisit,
+  t_cf_eosinophil_table_batchvisit,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_sig_batchvisit-v{ver}.xlsx"))
 t_cf_eosinophil_sig_batchvisit
 
 dim(t_cf_eosinophil_sig_batchvisit$deseq$ups[[1]])
 dim(t_cf_eosinophil_sig_batchvisit$deseq$downs[[1]])
 
+knitr::kable(head(t_cf_eosinophil_sig_batchvisit$deseq$ups[[1]]))
+knitr::kable(head(t_cf_eosinophil_sig_batchvisit$deseq$downs[[1]]))
+```
+
+Repeat with visit in the condition contrast.
+
+```{r}
 visitcf_factor <- paste0("v", pData(t_eosinophils)[["visitnumber"]],
                          pData(t_eosinophils)[["finaloutcome"]])
 t_eosinophil_visitcf <- set_expt_conditions(t_eosinophils, fact = visitcf_factor)
@@ -946,42 +958,117 @@ t_eosinophil_visitcf <- set_expt_conditions(t_eosinophils, fact = visitcf_factor
 t_cf_eosinophil_visits_de_sva <- all_pairwise(t_eosinophil_visitcf, model_batch = "svaseq",
                                               filter = TRUE)
 t_cf_eosinophil_visits_de_sva
-t_cf_eosinophil_visits_tables_sva <- combine_de_tables(
-  t_cf_eosinophil_visits_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_tables_sva-v{ver}.xlsx"))
-t_cf_eosinophil_visits_tables_sva
+t_cf_eosinophil_visits_table_sva <- combine_de_tables(
+   t_cf_eosinophil_visits_de_sva, keepers = visitcf_contrasts,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_visits_table_sva
 t_cf_eosinophil_visits_sig_sva <- extract_significant_genes(
-  t_cf_eosinophil_visits_tables_sva,
+  t_cf_eosinophil_visits_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_sig_sva-v{ver}.xlsx"))
 t_cf_eosinophil_visits_sig_sva
 
 dim(t_cf_eosinophil_visits_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_visits_sig_sva$deseq$downs[[1]])
+
+
+knitr::kable(head(t_cf_eosinophil_visits_sig_sva$deseq$ups[[1]]))
+knitr::kable(head(t_cf_eosinophil_visits_sig_sva$deseq$downs[[1]]))
 ```
 
-##### GSEA: gProfiler Eosinophils
+##### Repeat test of different models: Eosinophils
 
-Up: 116 genes; 123 GO, 2 KEGG, 7 Reactome, 5 WP, 69 TF, 1 miRNA, 0 others
-Down:  74 genes; 5 GO, 1 Reactome, 4 TF, 0 others
+We wish to ensure that my model simplification did not do anything
+incorrect to the data for all three cell types, I already did this for
+the neutrophils, let us repeat for the eosinophils.  I am therefore
+(mostly) copy/pasting the neutrophil section here.a
 
 ```{r}
-t_cf_eosinophil_sig_sva_gp <- all_gprofiler(t_cf_eosinophil_sig_sva)
-t_cf_eosinophil_sig_sva_gp
+## The original pairwise invocation with sva:
+#t_cf_eosinophil_de_sva <- all_pairwise(t_eosinophils, model_batch = "svaseq",
+#                                       filter = TRUE, parallel=FALSE)
+test_eosinophils <- normalize_expt(t_eosinophils, filter = "simple")
+test_eo_design <- pData(test_eosinophils)
+test_formula <- as.formula("~ 0 + finaloutcome + visitnumber")
+test_model <- model.matrix(test_formula, data = test_eo_design)
+null_formula <- as.formula("~ 0 + visitnumber")
+null_model <- model.matrix(null_formula, data = test_eo_design)
 
-written <- write_gprofiler_data(
-  t_cf_eosinophil_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_eosinophil_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_down-v{ver}.xlsx"))
+linear_mtrx <- exprs(test_eosinophils)
+l2_mtrx <- log2(linear_mtrx + 1)
+chosen_surrogates <- sva::num.sv(dat = l2_mtrx, mod = test_model)
 
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["REAC_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["WP_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["TF_enrich"]])
+surrogate_result <- sva::svaseq(
+  dat = linear_mtrx, n.sv = chosen_surrogates, mod = test_model, mod0 = null_model)
+model_adjust <- as.matrix(surrogate_result[["sv"]])
 
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_down"]][["TF_enrich"]])
+colnames(model_adjust) <- c("SV1", "SV2", "SV3")
+rownames(model_adjust) <- rownames(pData(test_eosinophils))
+longer_model <- as.formula("~ finaloutcome + visitnumber + SV1 + SV2 + SV3")
+eo_design_svs <- cbind(test_eo_design, model_adjust)
+summarized <- DESeq2::DESeqDataSetFromMatrix(countData = linear_mtrx,
+                                             colData = eo_design_svs,
+                                             design = longer_model)
+deseq_run <- DESeq2::DESeq(summarized)
+deseq_table <- as.data.frame(DESeq2::results(object = deseq_run,
+                                             contrast = c("finaloutcome", "failure", "cure"),
+                                             format = "DataFrame"))
+
+big_table <- t_cf_eosinophil_table_sva[["data"]][["outcome"]]
+only_deseq <- big_table[, c("deseq_logfc", "deseq_adjp")]
+merged <- merge(deseq_table, only_deseq, by = "row.names")
+rownames(merged) <- merged[["Row.names"]]
+merged[["Row.names"]] <- NULL
+
+cor_value <- cor.test(merged[["log2FoldChange"]], merged[["deseq_logfc"]])
+cor_value
+logfc_plotter <- plot_linear_scatter(merged[, c("log2FoldChange", "deseq_logfc")])
+logfc_plot <- logfc_plotter[["scatter"]] +
+  xlab("DESeq2 log2FC: Visit explicitly in model") +
+  ylab("DESeq2 log2FC: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
+pp(file = "images/compare_cf_and_visit_in_model_eosinophil_logfc.svg")
+logfc_plot
+dev.off()
+logfc_plot
+
+cor_value <- cor.test(merged[["padj"]], merged[["deseq_adjp"]], method = "spearman")
+cor_value
+adjp_plotter <- plot_linear_scatter(merged[, c("padj", "deseq_adjp")])
+adjp_plot <- adjp_plotter[["scatter"]] +
+  xlab("DESeq2 adjp: Visit explicitly in model") +
+  ylab("DESeq2 adjp: Default pairwise comparison") +
+  ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (spearman)"))
+pp(file = "images/compare_cf_and_visit_in_model_eosinophil_adjp.svg")
+adjp_plot
+dev.off()
+adjp_plot
+
+previous_sig_idx <- big_table[["deseq_adjp"]] <= 0.05 & abs(big_table[["deseq_logfc"]] >= 1.0)
+summary(previous_sig_idx)
+previous_genes <- rownames(big_table)[previous_sig_idx]
+
+new_sig_idx <- abs(deseq_table[["log2FoldChange"]]) >= 1.0 & deseq_table[["padj"]] < 0.05
+new_genes <- rownames(deseq_table)[new_sig_idx]
+na_idx <- is.na(new_genes)
+new_genes <- new_genes[!na_idx]
+
+Vennerable::Venn(list("previous" = previous_genes, "new" = new_genes))
+
+test_new <- simple_gprofiler(new_genes)
+test_new
+test_old <- simple_gprofiler(previous_genes)
+test_old
+
+new_annotated <- merge(fData(t_eosinophils), deseq_table, by = "row.names")
+rownames(new_annotated) <- new_annotated[["Row.names"]]
+new_annotated[["Row.names"]] <- NULL
+write_xlsx(data = new_annotated, excel = "excel/eosinophil_visit_in_model_sva_cf_new.xlsx")
+
+old_annotated <- merge(fData(t_eosinophils), big_table, by = "row.names")
+rownames(old_annotated) <- old_annotated[["Row.names"]]
+old_annotated[["Row.names"]] <- NULL
+write_xlsx(data = old_annotated, excel = "excel/eosinophil_visit_in_model_sva_cf_old.xlsx")
+
 ```
 
 #### C/F celltype volcano plots with specific labels
@@ -995,40 +1082,40 @@ directory in which to work; testing now.  If it continues to not work,
 I will need to remove some of the images created in this document.
 
 ```{r}
-num_color <- color_choices[["clinic_cf"]][["Tumaco_failure"]]
-den_color <- color_choices[["clinic_cf"]][["Tumaco_cure"]]
+num_color <- color_choices[["clinic_cf"]][["tumaco_failure"]]
+den_color <- color_choices[["clinic_cf"]][["tumaco_cure"]]
 wanted_genes <- c("FI44L", "IFI27", "PRR5", "PRR5-ARHGAP8", "RHCE",
                   "FBXO39", "RSAD2", "SMTNL1", "USP18", "AFAP1")
 
-cf_monocyte_table <- t_cf_monocyte_tables_sva[["data"]][["outcome"]]
+cf_monocyte_table <- t_cf_monocyte_table_sva[["data"]][["outcome"]]
 cf_monocyte_volcano <- plot_volcano_condition_de(
   cf_monocyte_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
 pp(file = glue("images/cf_monocyte_volcano_labeled-v{ver}.svg"))
-cf_monocyte_volcano$plot
+cf_monocyte_volcano[["plot"]]
 dev.off()
-cf_monocyte_volcano$plot
+cf_monocyte_volcano[["plot"]]
 
-cf_eosinophil_table <- t_cf_eosinophil_tables_sva[["data"]][["outcome"]]
+cf_eosinophil_table <- t_cf_eosinophil_table_sva[["data"]][["outcome"]]
 cf_eosinophil_volcano <- plot_volcano_condition_de(
   cf_eosinophil_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
 pp(file = glue("images/cf_eosinophil_volcano_labeled-v{ver}.svg"))
-cf_eosinophil_volcano$plot
+cf_eosinophil_volcano[["plot"]]
 dev.off()
-cf_eosinophil_volcano$plot
+cf_eosinophil_volcano[["plot"]]
 
-cf_neutrophil_table <- t_cf_neutrophil_tables_sva[["data"]][["outcome"]]
+cf_neutrophil_table <- t_cf_neutrophil_table_sva[["data"]][["outcome"]]
 cf_neutrophil_volcano <- plot_volcano_condition_de(
   cf_neutrophil_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
 pp(file = glue("images/cf_neutrophil_volcano_labeled-v{ver}.svg"))
-cf_neutrophil_volcano$plot
+cf_neutrophil_volcano[["plot"]]
 dev.off()
-cf_neutrophil_volcano$plot
+cf_neutrophil_volcano[["plot"]]
 ```
 
 ### Eosinophil time comparisons
@@ -1036,26 +1123,26 @@ cf_neutrophil_volcano$plot
 ```{r}
 t_cf_eosinophil_v1_de_sva <- all_pairwise(tv1_eosinophils, model_batch = "svaseq", filter = TRUE)
 t_cf_eosinophil_v1_de_sva
-t_cf_eosinophil_v1_tables_sva <- combine_de_tables(
-  t_cf_eosinophil_v1_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_tables_sva-v{ver}.xlsx"))
-t_cf_eosinophil_v1_tables_sva
+t_cf_eosinophil_v1_table_sva <- combine_de_tables(
+  t_cf_eosinophil_v1_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_v1_table_sva
 t_cf_eosinophil_v1_sig_sva <- extract_significant_genes(
-  t_cf_eosinophil_v1_tables_sva,
+  t_cf_eosinophil_v1_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_sig_sva-v{ver}.xlsx"))
-t_cf_eosinophil_v1_tables_sva
+t_cf_eosinophil_v1_table_sva
 
 dim(t_cf_eosinophil_v1_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_v1_sig_sva$deseq$downs[[1]])
 
 t_cf_eosinophil_v2_de_sva <- all_pairwise(tv2_eosinophils, model_batch = "svaseq", filter = TRUE)
 t_cf_eosinophil_v2_de_sva
-t_cf_eosinophil_v2_tables_sva <- combine_de_tables(
-  t_cf_eosinophil_v2_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v2_cf_tables_sva-v{ver}.xlsx"))
-t_cf_eosinophil_v2_tables_sva
+t_cf_eosinophil_v2_table_sva <- combine_de_tables(
+  t_cf_eosinophil_v2_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v2_cf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_v2_table_sva
 t_cf_eosinophil_v2_sig_sva <- extract_significant_genes(
-  t_cf_eosinophil_v2_tables_sva,
+  t_cf_eosinophil_v2_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v2_cf_sig_sva-v{ver}.xlsx"))
 t_cf_eosinophil_v2_sig_sva
 
@@ -1064,12 +1151,12 @@ dim(t_cf_eosinophil_v2_sig_sva$deseq$downs[[1]])
 
 t_cf_eosinophil_v3_de_sva <- all_pairwise(tv3_eosinophils, model_batch = "svaseq", filter = TRUE)
 t_cf_eosinophil_v3_de_sva
-t_cf_eosinophil_v3_tables_sva <- combine_de_tables(
-  t_cf_eosinophil_v3_de_sva, keepers = cf_contrast,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v3_cf_tables_sva-v{ver}.xlsx"))
-t_cf_eosinophil_v3_tables_sva
+t_cf_eosinophil_v3_table_sva <- combine_de_tables(
+  t_cf_eosinophil_v3_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v3_cf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_v3_table_sva
 t_cf_eosinophil_v3_sig_sva <- extract_significant_genes(
-  t_cf_eosinophil_v3_tables_sva,
+  t_cf_eosinophil_v3_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_v3_cf_sig_sva-v{ver}.xlsx"))
 t_cf_eosinophil_v3_sig_sva
 
@@ -1077,96 +1164,36 @@ dim(t_cf_eosinophil_v3_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_v3_sig_sva$deseq$downs[[1]])
 ```
 
-##### GSEA: gProfiler Eosinophils V1
-
-Up: 13 genes, no hits.
-Down: 19 genes; 11 GO, 1 Reactome, 1 TF
-
-```{r}
-t_cf_eosinophil_v1_sig_sva_gp <- all_gprofiler(t_cf_eosinophil_v1_sig_sva)
-t_cf_eosinophil_v1_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v1_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v1_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v1_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v1_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_down"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_down"]][["TF_enrich"]])
-```
-
-##### GSEA: gProfiler Eosinophils V2
-
-Up: 9 genes; 23 GO, 2 KEGG, 2 Reactome, 4 WP
-Down: 4 genes; no hits
-
-```{r}
-t_cf_eosinophil_v2_sig_sva_gp <- all_gprofiler(t_cf_eosinophil_v2_sig_sva)
-t_cf_eosinophil_v2_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v2_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v2_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v2_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v2_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["WP_enrich"]])
-```
-
-#### gProfiler: Eosinophils V3
-
-Up: 68 genes; 95 GO, 2 KEGG, 12 Reactome, 3 WP, 63 TF, 1 miRNA
-Down: 29 genes; 3 GO, 1 WP, 1 TF, 3 miRNA
-
-```{r}
-t_cf_eosinophil_v3_sig_sva_gp <- all_gprofiler(t_cf_eosinophil_v3_sig_sva)
-t_cf_eosinophil_v3_sig_sva_gp
-
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v3_sig_sva_gp[["outcome_up"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v3_up-v{ver}.xlsx"))
-written <- write_gprofiler_data(
-  t_cf_eosinophil_v3_sig_sva_gp[["outcome_down"]],
-  excel = glue("{xlsx_prefix}/GSEA/t_cf_eosinophil_v3_down-v{ver}.xlsx"))
-
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["GO_enrich"]])
-enrichplot::dotplot(t_cf_eosinophil_sig_sva_gp[["outcome_up"]][["WP_enrich"]])
-```
-
 #### Eosinophils: Compare sva to batch-in-visit
 
 ```{r}
-sva_aucc <- calculate_aucc(t_cf_eosinophil_tables_sva[["data"]][[1]],
-                           tbl2 = t_cf_eosinophil_tables_batchvisit[["data"]][[1]],
+sva_aucc <- calculate_aucc(t_cf_eosinophil_table_sva[["data"]][[1]],
+                           tbl2 = t_cf_eosinophil_table_batchvisit[["data"]][[1]],
                            py = "deseq_adjp", ly = "deseq_logfc")
 sva_aucc
 
-shared_ids <- rownames(t_cf_eosinophil_tables_sva[["data"]][[1]]) %in%
-  rownames(t_cf_eosinophil_tables_batchvisit[["data"]][[1]])
-first <- t_cf_eosinophil_tables_sva[["data"]][[1]][shared_ids, ]
-second <- t_cf_eosinophil_tables_batchvisit[["data"]][[1]][rownames(first), ]
+shared_ids <- rownames(t_cf_eosinophil_table_sva[["data"]][[1]]) %in%
+  rownames(t_cf_eosinophil_table_batchvisit[["data"]][[1]])
+first <- t_cf_eosinophil_table_sva[["data"]][[1]][shared_ids, ]
+second <- t_cf_eosinophil_table_batchvisit[["data"]][[1]][rownames(first), ]
 cor.test(first[["deseq_logfc"]], second[["deseq_logfc"]])
 ```
 
 #### Compare monocyte CF, neutrophil CF, eosinophil CF
 
 ```{r}
-t_mono_neut_sva_aucc <- calculate_aucc(t_cf_monocyte_tables_sva[["data"]][["outcome"]],
-                                       tbl2 = t_cf_neutrophil_tables_sva[["data"]][["outcome"]],
+t_mono_neut_sva_aucc <- calculate_aucc(t_cf_monocyte_table_sva[["data"]][["outcome"]],
+                                       tbl2 = t_cf_neutrophil_table_sva[["data"]][["outcome"]],
                                        py = "deseq_adjp", ly = "deseq_logfc")
 t_mono_neut_sva_aucc
 
-t_mono_eo_sva_aucc <- calculate_aucc(t_cf_monocyte_tables_sva[["data"]][["outcome"]],
-                                     tbl2 = t_cf_eosinophil_tables_sva[["data"]][["outcome"]],
+t_mono_eo_sva_aucc <- calculate_aucc(t_cf_monocyte_table_sva[["data"]][["outcome"]],
+                                     tbl2 = t_cf_eosinophil_table_sva[["data"]][["outcome"]],
                                      py = "deseq_adjp", ly = "deseq_logfc")
 t_mono_eo_sva_aucc
 
-t_neut_eo_sva_aucc <- calculate_aucc(t_cf_neutrophil_tables_sva[["data"]][["outcome"]],
-                                     tbl2 = t_cf_eosinophil_tables_sva[["data"]][["outcome"]],
+t_neut_eo_sva_aucc <- calculate_aucc(t_cf_neutrophil_table_sva[["data"]][["outcome"]],
+                                     tbl2 = t_cf_eosinophil_table_sva[["data"]][["outcome"]],
                                      py = "deseq_adjp", ly = "deseq_logfc")
 t_neut_eo_sva_aucc
 ```
@@ -1182,24 +1209,14 @@ slightly and add another set of contrasts.
 ```{r}
 t_visit_cf_all_de_sva <- all_pairwise(t_visitcf, model_batch = "svaseq", filter = TRUE)
 t_visit_cf_all_de_sva
-t_visit_cf_all_tables_sva <- combine_de_tables(
+t_visit_cf_all_table_sva <- combine_de_tables(
   t_visit_cf_all_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/t_all_visitcf_tables_sva-v{ver}.xlsx"))
-t_visit_cf_all_tables_sva
+  excel = glue("{cf_prefix}/t_all_visitcf_table_sva-v{ver}.xlsx"))
+t_visit_cf_all_table_sva
 t_visit_cf_all_sig_sva <- extract_significant_genes(
-  t_visit_cf_all_tables_sva,
+  t_visit_cf_all_table_sva,
   excel = glue("{cf_prefix}/t_all_visitcf_sig_sva-v{ver}.xlsx"))
 t_visit_cf_all_sig_sva
-```
-
-##### GSEA: Tumaco all samples C/F
-
-I am adding every gprofiler call to this document, but I have a strong
-feeling that this one is redundant.
-
-```{r}
-t_visit_cf_all_gp <- all_gprofiler(t_visit_cf_all_sig_sva)
-t_visit_cf_all_gp
 ```
 
 #### Cure/Fail by visit, Monocytes
@@ -1212,28 +1229,28 @@ t_monocytes_visitcf <- set_expt_conditions(t_monocytes, fact = visitcf_factor)
 t_visit_cf_monocyte_de_sva <- all_pairwise(t_monocytes_visitcf, model_batch = "svaseq",
                                            filter = TRUE)
 t_visit_cf_monocyte_de_sva
-t_visit_cf_monocyte_tables_sva <- combine_de_tables(
+t_visit_cf_monocyte_table_sva <- combine_de_tables(
   t_visit_cf_monocyte_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/Monocytes/t_monocyte_visitcf_tables_sva-v{ver}.xlsx"))
-t_visit_cf_monocyte_tables_sva
+  excel = glue("{cf_prefix}/Monocytes/t_monocyte_visitcf_table_sva-v{ver}.xlsx"))
+t_visit_cf_monocyte_table_sva
 t_visit_cf_monocyte_sig_sva <- extract_significant_genes(
-  t_visit_cf_monocyte_tables_sva,
+  t_visit_cf_monocyte_table_sva,
   excel = glue("{cf_prefix}/Monocytes/t_monocyte_visitcf_sig_sva-v{ver}.xlsx"))
 t_visit_cf_monocyte_sig_sva
 
-t_v1fc_deseq_ma <- t_visit_cf_monocyte_tables_sva[["plots"]][["v1cf"]][["deseq_ma_plots"]][["plot"]]
+t_v1fc_deseq_ma <- t_visit_cf_monocyte_table_sva[["plots"]][["v1cf"]][["deseq_ma_plots"]][["plot"]]
 dev <- pp(file = "images/monocyte_cf_de_v1_maplot.png")
 t_v1fc_deseq_ma
 closed <- dev.off()
 t_v1fc_deseq_ma
 
-t_v2fc_deseq_ma <- t_visit_cf_monocyte_tables_sva[["plots"]][["v2cf"]][["deseq_ma_plots"]][["plot"]]
+t_v2fc_deseq_ma <- t_visit_cf_monocyte_table_sva[["plots"]][["v2cf"]][["deseq_ma_plots"]][["plot"]]
 dev <- pp(file = "images/monocyte_cf_de_v2_maplot.png")
 t_v2fc_deseq_ma
 closed <- dev.off()
 t_v2fc_deseq_ma
 
-t_v3fc_deseq_ma <- t_visit_cf_monocyte_tables_sva[["plots"]][["v3cf"]][["deseq_ma_plots"]][["plot"]]
+t_v3fc_deseq_ma <- t_visit_cf_monocyte_table_sva[["plots"]][["v3cf"]][["deseq_ma_plots"]][["plot"]]
 dev <- pp(file = "images/monocyte_cf_de_v3_maplot.png")
 t_v3fc_deseq_ma
 closed <- dev.off()
@@ -1252,9 +1269,9 @@ potentially be moved up and a version of this with only the Tumaco
 samples put here?
 
 ```{r}
-v1cf <- t_visit_cf_monocyte_tables_sva[["data"]][["v1cf"]]
-v2cf <- t_visit_cf_monocyte_tables_sva[["data"]][["v2cf"]]
-v3cf <- t_visit_cf_monocyte_tables_sva[["data"]][["v3cf"]]
+v1cf <- t_visit_cf_monocyte_table_sva[["data"]][["v1cf"]]
+v2cf <- t_visit_cf_monocyte_table_sva[["data"]][["v2cf"]]
+v3cf <- t_visit_cf_monocyte_table_sva[["data"]][["v3cf"]]
 
 v1_sig <- c(
   rownames(t_visit_cf_monocyte_sig_sva[["deseq"]][["ups"]][["v1cf"]]),
@@ -1296,12 +1313,12 @@ t_neutrophil_visitcf <- set_expt_conditions(t_neutrophils, fact = visitcf_factor
 t_visit_cf_neutrophil_de_sva <- all_pairwise(t_neutrophil_visitcf, model_batch = "svaseq",
                                              filter = TRUE)
 t_visit_cf_neutrophil_de_sva
-t_visit_cf_neutrophil_tables_sva <- combine_de_tables(
+t_visit_cf_neutrophil_table_sva <- combine_de_tables(
   t_visit_cf_neutrophil_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_tables_sva-v{ver}.xlsx"))
-t_visit_cf_neutrophil_tables_sva
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_table_sva-v{ver}.xlsx"))
+t_visit_cf_neutrophil_table_sva
 t_visit_cf_neutrophil_sig_sva <- extract_significant_genes(
-  t_visit_cf_neutrophil_tables_sva,
+  t_visit_cf_neutrophil_table_sva,
   excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_visitcf_sig_sva-v{ver}.xlsx"))
 t_visit_cf_neutrophil_sig_sva
 ```
@@ -1316,12 +1333,12 @@ t_eosinophil_visitcf <- set_expt_conditions(t_eosinophils, fact = visitcf_factor
 t_visit_cf_eosinophil_de_sva <- all_pairwise(t_eosinophil_visitcf, model_batch = "svaseq",
                                              filter = TRUE)
 t_visit_cf_eosinophil_de_sva
-t_visit_cf_eosinophil_tables_sva <- combine_de_tables(
+t_visit_cf_eosinophil_table_sva <- combine_de_tables(
   t_visit_cf_eosinophil_de_sva, keepers = visitcf_contrasts,
-  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_tables_sva-v{ver}.xlsx"))
-t_visit_cf_eosinophil_tables_sva
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_table_sva-v{ver}.xlsx"))
+t_visit_cf_eosinophil_table_sva
 t_visit_cf_eosinophil_sig_sva <- extract_significant_genes(
-  t_visit_cf_eosinophil_tables_sva,
+  t_visit_cf_eosinophil_table_sva,
   excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_visitcf_sig_sva-v{ver}.xlsx"))
 t_visit_cf_eosinophil_sig_sva
 ```
@@ -1357,40 +1374,40 @@ See if there are any patterns which look usable.
 ## All
 persistence_norm <- normalize_expt(persistence_expt, transform = "log2", convert = "cpm",
                                    norm = "quant", filter = TRUE)
-plot_pca(persistence_norm)$plot
+plot_pca(persistence_norm)[["plot"]]
 persistence_nb <- normalize_expt(persistence_expt, transform = "log2", convert = "cpm",
                                  batch = "svaseq", filter = TRUE)
-plot_pca(persistence_nb)$plot
+plot_pca(persistence_nb)[["plot"]]
 
 ## Biopsies
 ##persistence_biopsy_norm <- normalize_expt(persistence_biopsy, transform = "log2", convert = "cpm",
 ##                                   norm = "quant", filter = TRUE)
-##plot_pca(persistence_biopsy_norm)$plot
+##plot_pca(persistence_biopsy_norm)[["plot"]]
 ## Insufficient data
 
 ## Monocytes
 persistence_monocyte_norm <- normalize_expt(persistence_monocyte, transform = "log2", convert = "cpm",
                                             norm = "quant", filter = TRUE)
-plot_pca(persistence_monocyte_norm)$plot
+plot_pca(persistence_monocyte_norm)[["plot"]]
 persistence_monocyte_nb <- normalize_expt(persistence_monocyte, transform = "log2", convert = "cpm",
                                           batch = "svaseq", filter = TRUE)
-plot_pca(persistence_monocyte_nb)$plot
+plot_pca(persistence_monocyte_nb)[["plot"]]
 
 ## Neutrophils
 persistence_neutrophil_norm <- normalize_expt(persistence_neutrophil, transform = "log2", convert = "cpm",
                                               norm = "quant", filter = TRUE)
-plot_pca(persistence_neutrophil_norm)$plot
+plot_pca(persistence_neutrophil_norm)[["plot"]]
 persistence_neutrophil_nb <- normalize_expt(persistence_neutrophil, transform = "log2", convert = "cpm",
                                             batch = "svaseq", filter = TRUE)
-plot_pca(persistence_neutrophil_nb)$plot
+plot_pca(persistence_neutrophil_nb)[["plot"]]
 
 ## Eosinophils
 persistence_eosinophil_norm <- normalize_expt(persistence_eosinophil, transform = "log2", convert = "cpm",
                                               norm = "quant", filter = TRUE)
-plot_pca(persistence_eosinophil_norm)$plot
+plot_pca(persistence_eosinophil_norm)[["plot"]]
 persistence_eosinophil_nb <- normalize_expt(persistence_eosinophil, transform = "log2", convert = "cpm",
                                             batch = "svaseq", filter = TRUE)
-plot_pca(persistence_eosinophil_nb)$plot
+plot_pca(persistence_eosinophil_nb)[["plot"]]
 ```
 
 ### persistence DE
@@ -1433,7 +1450,7 @@ t_visit_all_de_sva <- all_pairwise(t_visit, filter = TRUE, model_batch = "svaseq
 t_visit_all_de_sva
 t_visit_all_table_sva <- combine_de_tables(
   t_visit_all_de_sva, keepers = visit_contrasts,
-  excel = glue("{xlsx_prefix}/DE_Visits/t_all_visit_tables_sva-v{ver}.xlsx"))
+  excel = glue("{xlsx_prefix}/DE_Visits/t_all_visit_table_sva-v{ver}.xlsx"))
 t_visit_all_table_sva
 t_visit_all_sig_sva <- extract_significant_genes(
   t_visit_all_table_sva,
@@ -1450,7 +1467,7 @@ t_visit_monocyte_de_sva <- all_pairwise(t_visit_monocytes, filter = TRUE, model_
 t_visit_monocyte_de_sva
 t_visit_monocyte_table_sva <- combine_de_tables(
   t_visit_monocyte_de_sva, keepers = visit_contrasts,
-  excel = glue("{xlsx_prefix}/DE_Visits/Monocytes/t_monocyte_visit_tables_sva-v{ver}.xlsx"))
+  excel = glue("{xlsx_prefix}/DE_Visits/Monocytes/t_monocyte_visit_table_sva-v{ver}.xlsx"))
 t_visit_monocyte_table_sva
 t_visit_monocyte_sig_sva <- extract_significant_genes(
   t_visit_monocyte_table_sva,
@@ -1520,7 +1537,7 @@ eosinophil C/F table, one which is significant, one which is not, and
 an arbitrary.
 
 The input genes will therefore be chosen from the data structure:
-t_cf_eosinophil_tables_sva:
+t_cf_eosinophil_table_sva:
 
 ENSG00000198178, ENSG00000179344, ENSG00000182628
 
@@ -1545,8 +1562,6 @@ being missed in our interpretation of the results:
 ## Only the Scott data
 
 ```{r}
-external_cf
-
 external_norm <- normalize_expt(external_cf, filter = TRUE, norm = "quant",
                                 convert = "cpm", transform = "log2")
 plot_pca(external_norm)
@@ -1844,11 +1859,36 @@ ggplot(data.frame, aes(x=PC1, y=PC2, color=factor(targets.lesion$disease))) +
 
 ### My most similar pca
 
+I just realized that somewhere along the way in creating this
+container, I messed up this analysis pretty badly:
+
+1.  I dropped the 7 control samples.
+2.  I am comparing cure/fail but these analyses are all
+    control/cutaneous.
+
+When I originally did this on my workstation I had an actual 1:1
+comparison and saw that our results were quite similar.  I need to
+bring that back into this in order to show that neither we nor they
+are crazy people.
+
+Either way, I think the main takeaway is that their dataset does not
+spend much time looking at cure/fail but instead control/infected for
+a reason.
+
 ```{r}
+external_cf[["accession"]] <- rownames(pData(external_cf))
+test <- pData(external_cf)
+test_import <- as.data.frame(import)
+test_import[["accession"]] <- pData(external_cf[["accession"]])
+test_merged <- merge(test, import, by = "accession")
+external_disease <- set_expt_conditions(external_cf, factor = "disease")
+
 external_l2cpm <- normalize_expt(external_cf, filter = TRUE,
                                 convert = "cpm", transform = "log2")
 plot_pca(external_l2cpm, plot_labels = "repel")
 ```
+
+This is real comparison point to their cure/fail analysis.
 
 ## Cure/Fail PCA using the same prcomp result
 
@@ -1894,7 +1934,8 @@ dim(our_exprs)
 ## data to show a set of paired samples across the board.
 ## That is absolutely not true.
 correlations <- plot_corheat(our_exprs)
-correlations$plot
+correlations[["scatter"]]
+correlations[["plot"]]
 ```
 
 ```{r, eval=FALSE}
@@ -1998,7 +2039,8 @@ myTopHits.treat <- mutate(myTopHits.treat, log10Pval = round(-log10(adj.P.Val),2
 # Perform my analagous limma analysis
 
 ```{r compare_result, eval=FALSE}
-limma_cf <- limma_pairwise(my_renamed, model_batch = FALSE)
+my_filt <- normalize_expt(my_renamed, filter = "simple")
+limma_cf <- limma_pairwise(my_filt, model_batch = FALSE)
 
 my_table <- limma_cf[["all_tables"]][["failure_vs_cure"]]
 their_table <- myTopHits.treat
@@ -2016,6 +2058,29 @@ comparison$lm_model
 Ok, so there is a constituitive difference in our results, and it is
 significant.  What does that mean for the set of genes observed?
 
+With that said, in my most recent manual run of this, the results are
+quite good, I got a 0.75 correlation; I bet the primary outliers (on
+the axes) are just genes for which we got different gene<->tx mappings
+due to me using hisat and their usage of kallisto.
+
+I guess I can test this hypothesis by just swapping in their counts
+into my data structure.
+
+```{r, eval=FALSE}
+test_counts <- as.data.frame(myDGEList.lesion.coding[["counts"]])
+test_counts[["host_HS01"]] <- NULL
+test_counts[["host_HS02"]] <- NULL
+test_counts[["host_HS03"]] <- NULL
+test_counts[["host_HS04"]] <- NULL
+test_counts[["host_HS05"]] <- NULL
+test_counts[["host_HS06"]] <- NULL
+test_counts[["host_HS07"]] <- NULL
+
+dim(test_counts)
+dim(exprs(my_test))
+## Oh, that surprises me, the kallisto data has ~ 6k fewer genes?
+```
+
 # See if there are shared DE genes
 
 !!NOTE!!  I am using a non-adjusted p-value filter here because I want
@@ -2032,6 +2097,12 @@ sum(my_shared)
 
 shared <- rownames(my_table)[my_filter]
 shared[my_shared]
+
+both <- list(
+  "us" = rownames(my_table)[my_filter],
+  "them" = their_table[their_filter, "geneID"])
+tt <- UpSetR::fromList(both)
+UpSetR::upset(tt)
 ```
 
 ## Compare the two datasets directly
@@ -2082,12 +2153,51 @@ compared$scatter
 compared$correlation
 ```
 
-# Save the results for playing elsewhere
+# Compare visits by celltype and C/F
+
+I assume this request came out of the review process, but I am not
+quite sure where to put it.  If I understand it correctly, the goal is
+to look across visits for combinations of cure and fail (not
+fail/cure, but v2/v1) and across cell types.
+
+Thus, in order to do this, I will need to combine those three
+parameters or set up a more complex model to handle this.
 
 ```{r}
-save(list = ls(), file = glue("rda/tmrc3_03differential_expression_tumaco-v{ver}.rda"))
+t_cellvisitcf <- set_expt_conditions(t_clinical_nobiop, fact = "cell_visit_cf")
+
+t_cellvisitcf_de <- all_pairwise(t_cellvisitcf, keepers = visittype_contrasts,
+                                 model_batch = "svaseq", filter = TRUE)
+t_cellvisitcf_de
+
+t_cellvisitcf_mono_table <- combine_de_tables(
+  t_cellvisitcf_de, keepers = visittype_contrasts_mono,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/monocyte_visit_cf_combined_table_sva-v{ver}.xlsx"))
+t_cellvisitcf_mono_table
+t_cellvisitcf_mono_sig <- extract_significant_genes(
+  t_cellvisitcf_mono_table,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/monocyte_visit_cf_combined_sig_sva-v{ver}.xlsx"))
+t_cellvisitcf_mono_sig
+t_cellvisitcf_neut_table <- combine_de_tables(
+  t_cellvisitcf_de, keepers = visittype_contrasts_ne,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/neutrophil_visit_cf_combined_table_sva-v{ver}.xlsx"))
+t_cellvisitcf_neut_table
+t_cellvisitcf_neut_sig <- extract_significant_genes(
+  t_cellvisitcf_neut_table,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/neutrophil_visit_cf_combined_sig_sva-v{ver}.xlsx"))
+t_cellvisitcf_neut_sig
+t_cellvisitcf_eo_table <- combine_de_tables(
+  t_cellvisitcf_de, keepers = visittype_contrasts_eo,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/eosinophil_visit_cf_combined_table_sva-v{ver}.xlsx"))
+t_cellvisitcf_eo_table
+t_cellvisitcf_eo_sig <- extract_significant_genes(
+  t_cellvisitcf_eo_table,
+  excel = glue("{xlsx_prefix}/DE_Visits/Cure_Fail/eosinophil_visit_cf_combined_sig_sva-v{ver}.xlsx"))
+t_cellvisitcf_eo_sig
 ```
 
 ```{r loadme_after, eval=FALSE}
 tmp <- loadme(filename = savefile)
 ```
+
+# Bibliography
