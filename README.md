@@ -47,8 +47,30 @@ make
 sudo -E singularity build tmrc3_analyses.sif tmrc3_analyses.yml
 ```
 
+## Notes on the Makefile
+
 The default Makefile target has dependencies for all of the .Rmd files
 in data/; so if any of them change it should rebuild.
+
+There are a couple options in the Makefile which may help the running
+of the container in different environments:
+
+1.  SINGULARITY_BIND: This, along with the environment variable
+    'RENV_PATHS_CACHE' in local/etc/bashrc has a profound effect on
+    the build time (assuming you are using renv).  It makes it
+    possible to use a global renv cache directory in order to find and
+    quickly install the various packages used by the container.
+    If it is not set, the container will always take ~ 5 hours to
+    build.  If it is set, then it takes ~ 4 minutes (assuming all the
+    prerequisites are located in the cache already, YMMV).
+2.  PARALLEL: Some tasks in the container will run across all
+    available cpu cores, thus taking up significantly more memory.
+    Notably, the differential expression analyses can take up to ~
+    180G of ram when PARALLEL is on (at least on my computer).  If
+    this is set to 'FALSE' in the Makefile, then it will take a bit
+    longer, but the maximum memory usage falls to ~ 30-40G.  If your
+    machine has less than that, then I think some things are doomed to
+    fail.
 
 # Generating the html/rda/excel output files
 

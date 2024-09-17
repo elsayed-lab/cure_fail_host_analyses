@@ -50,12 +50,7 @@ knitr::opts_chunk$set(
 old_options <- options(digits = 4, stringsAsFactors = FALSE, knitr.duplicate.label = "allow")
 ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
-previous_file <- ""
 rundate <- format(Sys.Date(), format = "%Y%m%d")
-##rmd_file <- "05enrichment.Rmd"
-##savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
-## I don't think the expressionsets are required in this document.
-##loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 ```
 
 # Quick xlsx reader functions

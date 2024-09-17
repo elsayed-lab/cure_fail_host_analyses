@@ -54,10 +54,14 @@ knitr::opts_chunk$set(
 old_options <- options(digits = 4, stringsAsFactors = FALSE, knitr.duplicate.label = "allow")
 ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
-previous_file <- ""
+parallel <- toupper(Sys.getenv("PARALLEL"))
+if (parallel == "" || parallel == "TRUE") {
+  parallel <- TRUE
+} else {
+  parallel <- FALSE
+}
 rundate <- format(Sys.Date(), format = "%Y%m%d")
 
-##tmp <- try(sm(loadme(filename = gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = previous_file))))
 rmd_file <- glue("tmrc3_differential_expression_tumaco_{ver}.Rmd")
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
@@ -280,7 +284,8 @@ only use SVA, primarily because I am not certain what would be an
 appropriate batch factor, perhaps visit?
 
 ```{r}
-t_cf_clinical_de_sva <- all_pairwise(t_clinical, model_batch = "svaseq", filter = TRUE)
+t_cf_clinical_de_sva <- all_pairwise(t_clinical, model_batch = "svaseq",
+                                     parallel = parallel, filter = TRUE)
 t_cf_clinical_de_sva
 t_cf_clinical_table_sva <- combine_de_tables(
   t_cf_clinical_de_sva, keepers = cf_contrast,
@@ -299,7 +304,8 @@ dim(t_cf_clinical_sig_sva$deseq$downs[[1]])
 Repeat without the biopsies.
 
 ```{r}
-t_cf_clinicalnb_de_sva <- all_pairwise(t_clinical_nobiop, model_batch = "svaseq", filter = TRUE)
+t_cf_clinicalnb_de_sva <- all_pairwise(t_clinical_nobiop, model_batch = "svaseq",
+                                       parallel = parallel, filter = TRUE)
 t_cf_clinicalnb_de_sva
 t_cf_clinicalnb_table_sva <- combine_de_tables(
   t_cf_clinicalnb_de_sva, keepers = cf_contrast,
@@ -353,7 +359,8 @@ something I did quite a lot in the 2019 datasets, but never actually
 moved to this document.
 
 ```{r}
-tv1_vs_later <- all_pairwise(t_v1vs, model_batch = "svaseq", filter = TRUE)
+tv1_vs_later <- all_pairwise(t_v1vs, model_batch = "svaseq",
+                             parallel = parallel, filter = TRUE)
 tv1_vs_later
 tv1_vs_later_table <- combine_de_tables(
   tv1_vs_later, keepers = visit_v1later,
@@ -370,7 +377,8 @@ tv1_vs_later_sig
 ```{r}
 t_sex <- subset_expt(tc_sex, subset = "clinic == 'tumaco'")
 t_sex
-t_sex_de <- all_pairwise(t_sex, model_batch = "svaseq", filter = TRUE)
+t_sex_de <- all_pairwise(t_sex, model_batch = "svaseq",
+                         parallel = parallel, filter = TRUE)
 t_sex_de
 t_sex_table <- combine_de_tables(
   t_sex_de, excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_sex_table-v{ver}.xlsx"))
@@ -384,7 +392,8 @@ t_sex_sig
 tc_sex_cure <- subset_expt(tc_sex, subset = "finaloutcome=='cure'")
 t_sex_cure <- subset_expt(tc_sex_cure, subset = "clinic == 'tumaco'")
 
-t_sex_cure_de <- all_pairwise(t_sex_cure, model_batch = "svaseq", filter = TRUE)
+t_sex_cure_de <- all_pairwise(t_sex_cure, model_batch = "svaseq",
+                              parallel = parallel, filter = TRUE)
 t_sex_cure_de
 t_sex_cure_table <- combine_de_tables(
   t_sex_cure_de, excel = glue("{xlsx_prefix}/DE_Sex/t_sex_cure_table-v{ver}.xlsx"))
@@ -397,7 +406,8 @@ t_sex_cure_sig
 # Ethnicity comparisons
 
 ```{r}
-t_ethnicity_de <- all_pairwise(t_etnia_expt, model_batch = "svaseq", filter = TRUE)
+t_ethnicity_de <- all_pairwise(t_etnia_expt, model_batch = "svaseq",
+                               parallel = parallel, filter = TRUE)
 t_ethnicity_de
 t_ethnicity_table <- combine_de_tables(
   t_ethnicity_de, keepers = ethnicity_contrasts,
@@ -419,7 +429,8 @@ will therefore look at cure/fail from Tumaco at visit 1.
 #### Cure/Fail, Tumaco Visit 1
 
 ```{r}
-t_cf_clinical_v1_de_sva <- all_pairwise(tv1_samples, model_batch = "svaseq", filter = TRUE,
+t_cf_clinical_v1_de_sva <- all_pairwise(tv1_samples, model_batch = "svaseq",
+                                        parallel = parallel, filter = TRUE,
                                         parallel = FALSE)
 t_cf_clinical_v1_de_sva
 t_cf_clinical_v1_table_sva <- combine_de_tables(
@@ -442,7 +453,8 @@ an opportunity to see if we can observe changes in response in the
 middle and end of treatment...
 
 ```{r}
-t_cf_clinical_v2_de_sva <- all_pairwise(tv2_samples, model_batch = "svaseq", filter = TRUE)
+t_cf_clinical_v2_de_sva <- all_pairwise(tv2_samples, model_batch = "svaseq",
+                                        parallel = parallel, filter = TRUE)
 t_cf_clinical_v2_de_sva
 t_cf_clinical_v2_table_sva <- combine_de_tables(
   t_cf_clinical_v2_de_sva, keepers = cf_contrast,
@@ -466,7 +478,8 @@ differences in the response for people who did(not) respond well.
 #### Cure/Fail, Biopsies
 
 ```{r}
-t_cf_biopsy_de_sva <- all_pairwise(t_biopsies, model_batch = "svaseq", filter = TRUE)
+t_cf_biopsy_de_sva <- all_pairwise(t_biopsies, model_batch = "svaseq",
+                                   parallel = parallel, filter = TRUE)
 t_cf_biopsy_de_sva
 t_cf_biopsy_table_sva <- combine_de_tables(
   t_cf_biopsy_de_sva, keepers = t_cf_contrast,
@@ -489,7 +502,7 @@ batch factor.
 
 ```{r}
 t_cf_monocyte_de_sva <- all_pairwise(t_monocytes, model_batch = "svaseq",
-                                     filter = TRUE)
+                                     parallel = parallel, filter = TRUE)
 t_cf_monocyte_de_sva
 t_cf_monocyte_table_sva <- combine_de_tables(
   t_cf_monocyte_de_sva, keepers = t_cf_contrast,
@@ -503,7 +516,8 @@ t_cf_monocyte_sig_sva
 dim(t_cf_monocyte_sig_sva$deseq$ups[[1]])
 dim(t_cf_monocyte_sig_sva$deseq$downs[[1]])
 
-t_cf_monocyte_de_batchvisit <- all_pairwise(t_monocytes, model_batch = TRUE, filter = TRUE)
+t_cf_monocyte_de_batchvisit <- all_pairwise(t_monocytes, model_batch = TRUE,
+                                            parallel = parallel, filter = TRUE)
 t_cf_monocyte_de_batchvisit
 t_cf_monocyte_table_batchvisit <- combine_de_tables(
   t_cf_monocyte_de_batchvisit, keepers = t_cf_contrast,
@@ -641,7 +655,8 @@ Now focus in on the monocyte samples on a per-visit basis.
 #### Visit 1
 
 ```{r}
-t_cf_monocyte_v1_de_sva <- all_pairwise(tv1_monocytes, model_batch = "svaseq", filter = TRUE)
+t_cf_monocyte_v1_de_sva <- all_pairwise(tv1_monocytes, model_batch = "svaseq",
+                                        parallel = parallel, filter = TRUE)
 t_cf_monocyte_v1_de_sva
 t_cf_monocyte_v1_table_sva <- combine_de_tables(
   t_cf_monocyte_v1_de_sva, keepers = t_cf_contrast,
@@ -677,7 +692,8 @@ Switch context to the Neutrophils, once again repeat the analysis
 using SVA and visit as a batch factor.
 
 ```{r}
-t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq", filter = TRUE)
+t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq",
+                                       parallel = parallel, filter = TRUE)
 t_cf_neutrophil_de_sva
 t_cf_neutrophil_table_sva <- combine_de_tables(
   t_cf_neutrophil_de_sva, keepers = t_cf_contrast,
@@ -691,7 +707,8 @@ t_cf_neutrophil_sig_sva
 dim(t_cf_neutrophil_sig_sva$deseq$ups[[1]])
 dim(t_cf_neutrophil_sig_sva$deseq$downs[[1]])
 
-t_cf_neutrophil_de_batchvisit <- all_pairwise(t_neutrophils, model_batch = TRUE, filter = TRUE)
+t_cf_neutrophil_de_batchvisit <- all_pairwise(t_neutrophils, model_batch = TRUE,
+                                              parallel = parallel, filter = TRUE)
 t_cf_neutrophil_de_batchvisit
 t_cf_neutrophil_table_batchvisit <- combine_de_tables(
   t_cf_neutrophil_de_batchvisit, keepers = t_cf_contrast,
@@ -724,7 +741,8 @@ absolutely ensure that nothing unintended happens.
 
 ```{r}
 ## The original pairwise invocation with sva:
-## t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq", filter = TRUE)
+## t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq",
+##                                        parallel = parallel, filter = TRUE)
 test_neutrophils <- normalize_expt(t_neutrophils, filter = "simple")
 test_neut_design <- pData(test_neutrophils)
 test_formula <- as.formula("~ 0 + finaloutcome + visitnumber")
@@ -830,7 +848,7 @@ visitcf_factor <- paste0("v", pData(t_neutrophils)[["visitnumber"]],
 t_neutrophil_visitcf <- set_expt_conditions(t_neutrophils, fact=visitcf_factor)
 
 t_cf_neutrophil_visits_de_sva <- all_pairwise(t_neutrophil_visitcf, model_batch = "svaseq",
-                                              filter = TRUE)
+                                              parallel = parallel, filter = TRUE)
 t_cf_neutrophil_visits_de_sva
 t_cf_neutrophil_visits_table_sva <- combine_de_tables(
   t_cf_neutrophil_visits_de_sva, keepers = visitcf_contrasts,
@@ -844,7 +862,8 @@ t_cf_neutrophil_visits_sig_sva
 dim(t_cf_neutrophil_visits_sig_sva$deseq$ups[[1]])
 dim(t_cf_neutrophil_visits_sig_sva$deseq$downs[[1]])
 
-t_cf_neutrophil_v1_de_sva <- all_pairwise(tv1_neutrophils, model_batch = "svaseq", filter = TRUE)
+t_cf_neutrophil_v1_de_sva <- all_pairwise(tv1_neutrophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_neutrophil_v1_de_sva
 t_cf_neutrophil_v1_table_sva <- combine_de_tables(
   t_cf_neutrophil_v1_de_sva, keepers = t_cf_contrast,
@@ -858,7 +877,8 @@ t_cf_neutrophil_v1_sig_sva
 dim(t_cf_neutrophil_v1_sig_sva$deseq$ups[[1]])
 dim(t_cf_neutrophil_v1_sig_sva$deseq$downs[[1]])
 
-t_cf_neutrophil_v2_de_sva <- all_pairwise(tv2_neutrophils, model_batch = "svaseq", filter = TRUE)
+t_cf_neutrophil_v2_de_sva <- all_pairwise(tv2_neutrophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_neutrophil_v2_de_sva
 t_cf_neutrophil_v2_table_sva <- combine_de_tables(
   t_cf_neutrophil_v2_de_sva,
@@ -873,7 +893,8 @@ t_cf_neutrophil_v2_sig_sva
 dim(t_cf_neutrophil_v2_sig_sva$deseq$ups[[1]])
 dim(t_cf_neutrophil_v2_sig_sva$deseq$downs[[1]])
 
-t_cf_neutrophil_v3_de_sva <- all_pairwise(tv3_neutrophils, model_batch = "svaseq", filter = TRUE)
+t_cf_neutrophil_v3_de_sva <- all_pairwise(tv3_neutrophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_neutrophil_v3_de_sva
 t_cf_neutrophil_v3_table_sva <- combine_de_tables(
   t_cf_neutrophil_v3_de_sva, keepers = t_cf_contrast,
@@ -909,7 +930,8 @@ This time, with feeling!  Repeating the same set of tasks with the
 eosinophil samples.
 
 ```{r}
-t_cf_eosinophil_de_sva <- all_pairwise(t_eosinophils, model_batch = "svaseq", filter = TRUE)
+t_cf_eosinophil_de_sva <- all_pairwise(t_eosinophils, model_batch = "svaseq",
+                                       parallel = parallel, filter = TRUE)
 t_cf_eosinophil_de_sva
 t_cf_eosinophil_table_sva <- combine_de_tables(
   t_cf_eosinophil_de_sva, keepers = t_cf_contrast,
@@ -930,7 +952,8 @@ knitr::kable(head(t_cf_eosinophil_sig_sva$deseq$downs[[1]]))
 Repeat with batch in the model.
 
 ```{r}
-t_cf_eosinophil_de_batchvisit <- all_pairwise(t_eosinophils, model_batch = TRUE, filter = TRUE)
+t_cf_eosinophil_de_batchvisit <- all_pairwise(t_eosinophils, model_batch = TRUE,
+                                              parallel = parallel, filter = TRUE)
 t_cf_eosinophil_de_batchvisit
 t_cf_eosinophil_table_batchvisit <- combine_de_tables(
   t_cf_eosinophil_de_batchvisit, keepers = t_cf_contrast,
@@ -956,7 +979,7 @@ visitcf_factor <- paste0("v", pData(t_eosinophils)[["visitnumber"]],
 t_eosinophil_visitcf <- set_expt_conditions(t_eosinophils, fact = visitcf_factor)
 
 t_cf_eosinophil_visits_de_sva <- all_pairwise(t_eosinophil_visitcf, model_batch = "svaseq",
-                                              filter = TRUE)
+                                              parallel = parallel, filter = TRUE)
 t_cf_eosinophil_visits_de_sva
 t_cf_eosinophil_visits_table_sva <- combine_de_tables(
    t_cf_eosinophil_visits_de_sva, keepers = visitcf_contrasts,
@@ -1121,7 +1144,8 @@ cf_neutrophil_volcano[["plot"]]
 ### Eosinophil time comparisons
 
 ```{r}
-t_cf_eosinophil_v1_de_sva <- all_pairwise(tv1_eosinophils, model_batch = "svaseq", filter = TRUE)
+t_cf_eosinophil_v1_de_sva <- all_pairwise(tv1_eosinophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_eosinophil_v1_de_sva
 t_cf_eosinophil_v1_table_sva <- combine_de_tables(
   t_cf_eosinophil_v1_de_sva, keepers = t_cf_contrast,
@@ -1135,7 +1159,8 @@ t_cf_eosinophil_v1_table_sva
 dim(t_cf_eosinophil_v1_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_v1_sig_sva$deseq$downs[[1]])
 
-t_cf_eosinophil_v2_de_sva <- all_pairwise(tv2_eosinophils, model_batch = "svaseq", filter = TRUE)
+t_cf_eosinophil_v2_de_sva <- all_pairwise(tv2_eosinophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_eosinophil_v2_de_sva
 t_cf_eosinophil_v2_table_sva <- combine_de_tables(
   t_cf_eosinophil_v2_de_sva, keepers = t_cf_contrast,
@@ -1149,7 +1174,8 @@ t_cf_eosinophil_v2_sig_sva
 dim(t_cf_eosinophil_v2_sig_sva$deseq$ups[[1]])
 dim(t_cf_eosinophil_v2_sig_sva$deseq$downs[[1]])
 
-t_cf_eosinophil_v3_de_sva <- all_pairwise(tv3_eosinophils, model_batch = "svaseq", filter = TRUE)
+t_cf_eosinophil_v3_de_sva <- all_pairwise(tv3_eosinophils, model_batch = "svaseq",
+                                          parallel = parallel, filter = TRUE)
 t_cf_eosinophil_v3_de_sva
 t_cf_eosinophil_v3_table_sva <- combine_de_tables(
   t_cf_eosinophil_v3_de_sva, keepers = t_cf_contrast,
@@ -1207,7 +1233,8 @@ slightly and add another set of contrasts.
 #### Cure/Fail by visits, all cell types
 
 ```{r}
-t_visit_cf_all_de_sva <- all_pairwise(t_visitcf, model_batch = "svaseq", filter = TRUE)
+t_visit_cf_all_de_sva <- all_pairwise(t_visitcf, model_batch = "svaseq",
+                                      parallel = parallel, filter = TRUE)
 t_visit_cf_all_de_sva
 t_visit_cf_all_table_sva <- combine_de_tables(
   t_visit_cf_all_de_sva, keepers = visitcf_contrasts,
@@ -1227,7 +1254,7 @@ visitcf_factor <- paste0("v", pData(t_monocytes)[["visitnumber"]], "_",
 t_monocytes_visitcf <- set_expt_conditions(t_monocytes, fact = visitcf_factor)
 
 t_visit_cf_monocyte_de_sva <- all_pairwise(t_monocytes_visitcf, model_batch = "svaseq",
-                                           filter = TRUE)
+                                           parallel = parallel, filter = TRUE)
 t_visit_cf_monocyte_de_sva
 t_visit_cf_monocyte_table_sva <- combine_de_tables(
   t_visit_cf_monocyte_de_sva, keepers = visitcf_contrasts,
@@ -1311,7 +1338,7 @@ visitcf_factor <- paste0("v", pData(t_neutrophils)[["visitnumber"]], "_",
 t_neutrophil_visitcf <- set_expt_conditions(t_neutrophils, fact = visitcf_factor)
 
 t_visit_cf_neutrophil_de_sva <- all_pairwise(t_neutrophil_visitcf, model_batch = "svaseq",
-                                             filter = TRUE)
+                                             parallel = parallel, filter = TRUE)
 t_visit_cf_neutrophil_de_sva
 t_visit_cf_neutrophil_table_sva <- combine_de_tables(
   t_visit_cf_neutrophil_de_sva, keepers = visitcf_contrasts,
@@ -1331,7 +1358,7 @@ visitcf_factor <- paste0("v", pData(t_eosinophils)[["visitnumber"]], "_",
 t_eosinophil_visitcf <- set_expt_conditions(t_eosinophils, fact = visitcf_factor)
 
 t_visit_cf_eosinophil_de_sva <- all_pairwise(t_eosinophil_visitcf, model_batch = "svaseq",
-                                             filter = TRUE)
+                                             parallel = parallel, filter = TRUE)
 t_visit_cf_eosinophil_de_sva
 t_visit_cf_eosinophil_table_sva <- combine_de_tables(
   t_visit_cf_eosinophil_de_sva, keepers = visitcf_contrasts,
@@ -1413,20 +1440,23 @@ plot_pca(persistence_eosinophil_nb)[["plot"]]
 ### persistence DE
 
 ```{r}
-persistence_de_sva <- all_pairwise(persistence_expt, filter = TRUE, model_batch = "svaseq")
+persistence_de_sva <- all_pairwise(persistence_expt, filter = TRUE,
+                                   parallel = parallel, model_batch = "svaseq")
 persistence_de_sva
 persistence_table_sva <- combine_de_tables(
   persistence_de_sva,
   excel = glue("{xlsx_prefix}/DE_Persistence/persistence_all_de_sva-v{ver}.xlsx"))
 persistence_table_sva
-persistence_monocyte_de_sva <- all_pairwise(persistence_monocyte, filter = TRUE, model_batch = "svaseq")
+persistence_monocyte_de_sva <- all_pairwise(persistence_monocyte, filter = TRUE,
+                                            parallel = parallel, model_batch = "svaseq")
 persistence_monocyte_de_sva
 persistence_monocyte_table_sva <- combine_de_tables(
   persistence_monocyte_de_sva,
   excel = glue("{xlsx_prefix}/DE_Persistence/persistence_monocyte_de_sva-v{ver}.xlsx"))
 persistence_monocyte_table_sva
 
-persistence_neutrophil_de_sva <- all_pairwise(persistence_neutrophil, filter = TRUE, model_batch = "svaseq")
+persistence_neutrophil_de_sva <- all_pairwise(persistence_neutrophil, filter = TRUE,
+                                              parallel = parallel, model_batch = "svaseq")
 persistence_neutrophil_de_sva
 persistence_neutrophil_table_sva <- combine_de_tables(
   persistence_neutrophil_de_sva,
@@ -1434,7 +1464,8 @@ persistence_neutrophil_table_sva <- combine_de_tables(
 persistence_neutrophil_table_sva
 
 ## There are insufficient samples (1) in the 'N' category.
-##persistence_eosinophil_de_sva <- all_pairwise(persistence_eosinophil, filter = TRUE, model_batch = "svaseq")
+##persistence_eosinophil_de_sva <- all_pairwise(persistence_eosinophil, filter = TRUE,
+##                                              parallel = parallel, model_batch = "svaseq")
 ##persistence_eosinophil_de_sva
 ##persistence_eosinophil_table_sva <- combine_de_tables(
 ##  persistence_eosinophil_de_sva,
@@ -1446,7 +1477,8 @@ persistence_neutrophil_table_sva
 ### All cell types
 
 ```{r}
-t_visit_all_de_sva <- all_pairwise(t_visit, filter = TRUE, model_batch = "svaseq")
+t_visit_all_de_sva <- all_pairwise(t_visit, filter = TRUE,
+                                   parallel = parallel, model_batch = "svaseq")
 t_visit_all_de_sva
 t_visit_all_table_sva <- combine_de_tables(
   t_visit_all_de_sva, keepers = visit_contrasts,
@@ -1463,7 +1495,8 @@ t_visit_all_sig_sva
 ```{r}
 t_visit_monocytes <- set_expt_conditions(t_monocytes, fact = "visitnumber")
 
-t_visit_monocyte_de_sva <- all_pairwise(t_visit_monocytes, filter = TRUE, model_batch = "svaseq")
+t_visit_monocyte_de_sva <- all_pairwise(t_visit_monocytes, filter = TRUE,
+                                        parallel = parallel, model_batch = "svaseq")
 t_visit_monocyte_de_sva
 t_visit_monocyte_table_sva <- combine_de_tables(
   t_visit_monocyte_de_sva, keepers = visit_contrasts,
@@ -1480,7 +1513,8 @@ t_visit_monocyte_sig_sva
 ```{r}
 t_visit_neutrophils <- set_expt_conditions(t_neutrophils, fact = "visitnumber")
 
-t_visit_neutrophil_de_sva <- all_pairwise(t_visit_neutrophils, filter = TRUE, model_batch = "svaseq")
+t_visit_neutrophil_de_sva <- all_pairwise(t_visit_neutrophils, filter = TRUE,
+                                          parallel = parallel, model_batch = "svaseq")
 t_visit_neutrophil_de_sva
 t_visit_neutrophil_table_sva <- combine_de_tables(
   t_visit_neutrophil_de_sva, keepers = visit_contrasts,
@@ -1497,7 +1531,8 @@ t_visit_neutrophil_sig_sva
 ```{r}
 t_visit_eosinophils <- set_expt_conditions(t_eosinophils, fact="visitnumber")
 
-t_visit_eosinophil_de <- all_pairwise(t_visit_eosinophils, filter = TRUE, model_batch = "svaseq")
+t_visit_eosinophil_de <- all_pairwise(t_visit_eosinophils, filter = TRUE,
+                                      parallel = parallel, model_batch = "svaseq")
 t_visit_eosinophil_de
 t_visit_eosinophil_table <- combine_de_tables(
   t_visit_eosinophil_de, keepers = visit_contrasts,
@@ -1569,7 +1604,8 @@ external_nb <- normalize_expt(external_cf, filter = TRUE, batch = "svaseq",
                                 convert = "cpm", transform = "log2")
 plot_pca(external_nb)
 
-external_de <- all_pairwise(external_cf, filter = TRUE, model_batch = "svaseq")
+external_de <- all_pairwise(external_cf, filter = TRUE,
+                            parallel = parallel, model_batch = "svaseq")
 external_de
 external_table <- combine_de_tables(external_de, excel = "excel/scott_table.xlsx")
 external_table
@@ -2110,7 +2146,8 @@ UpSetR::upset(tt)
 ```{r scott_external}
 only_tmrc3 <- subset_expt(tmrc3_external, subset = "condition=='Colombia'") %>%
   set_expt_conditions(fact = "finaloutcome")
-only_tmrc3_de <- all_pairwise(only_tmrc3, model_batch = "svaseq", filter = TRUE)
+only_tmrc3_de <- all_pairwise(only_tmrc3, model_batch = "svaseq",
+                              parallel = parallel, filter = TRUE)
 only_tmrc3_de
 only_tmrc3_table <- combine_de_tables(only_tmrc3_de)
 only_tmrc3_table
@@ -2118,7 +2155,8 @@ only_tmrc3_top100 <- extract_significant_genes(only_tmrc3_table, n = 100)
 only_tmrc3_up <- only_tmrc3_top100[["deseq"]][["ups"]][["failure_vs_cure"]]
 only_tmrc3_down <- only_tmrc3_top100[["deseq"]][["downs"]][["failure_vs_cure"]]
 
-tmrc3_external_de <- all_pairwise(tmrc3_external, model_batch = "svaseq", filter = "simple")
+tmrc3_external_de <- all_pairwise(tmrc3_external, model_batch = "svaseq",
+                                  parallel = parallel, filter = "simple")
 tmrc3_external_table <- combine_de_tables(tmrc3_external_de, excel = "excel/tmrc3_scott_biopsies.xlsx")
 tmrc3_external_sig <- extract_significant_genes(tmrc3_external_table, excel = "excel/tmrc3_scott_biopsies_sig.xlsx")
 
@@ -2129,7 +2167,8 @@ plot_pca(tmrc3_external_cf_norm)
 tmrc3_external_cf_nb <- normalize_expt(tmrc3_external_cf, filter = TRUE, batch = "svaseq", convert = "cpm", transform = "log2")
 plot_pca(tmrc3_external_cf_nb)
 
-tmrc3_external_cf_de <- all_pairwise(tmrc3_external_cf, model_batch = "svaseq", filter = TRUE)
+tmrc3_external_cf_de <- all_pairwise(tmrc3_external_cf, model_batch = "svaseq",
+                                     parallel = parallel, filter = TRUE)
 tmrc3_external_cf_de
 tmrc3_external_cf_table <- combine_de_tables(tmrc3_external_cf_de, excel = "excel/tmrc3_scott_cf_table.xlsx")
 tmrc3_external_cf_table
@@ -2167,7 +2206,7 @@ parameters or set up a more complex model to handle this.
 t_cellvisitcf <- set_expt_conditions(t_clinical_nobiop, fact = "cell_visit_cf")
 
 t_cellvisitcf_de <- all_pairwise(t_cellvisitcf, keepers = visittype_contrasts,
-                                 model_batch = "svaseq", filter = TRUE)
+                                 model_batch = "svaseq", filter = TRUE, parallel = parallel)
 t_cellvisitcf_de
 
 t_cellvisitcf_mono_table <- combine_de_tables(

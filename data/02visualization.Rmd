@@ -42,6 +42,7 @@ library(broom) ## Provides tidy methods for lm/glm/etc
 library(dplyr)
 library(EuPathDB)
 library(forcats)
+library(ggplot2)
 library(ggstatsplot)
 library(glue)
 library(hpgltools)
@@ -55,10 +56,8 @@ knitr::opts_chunk$set(
 old_options <- options(digits = 4, stringsAsFactors = FALSE, knitr.duplicate.label = "allow")
 ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
-previous_file <- ""
 rundate <- format(Sys.Date(), format = "%Y%m%d")
 
-##tmp <- try(sm(loadme(filename=gsub(pattern="\\.Rmd", replace="\\.rda\\.xz", x=previous_file))))
 rmd_file <- "02visualization"
 savefile <- gsub(pattern = "\\.Rmd", replace="\\.rda\\.xz", x = rmd_file)
 loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
@@ -722,15 +721,18 @@ tc_norm <- sm(normalize_expt(tc_type, transform = "log2", norm = "quant",
 
 tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
                     plot_title = "PCA - Cell type", size_column = "visitnumber")
+pp(file = "figures/tc_pca_sized.pdf")
+tc_pca
+dev.off()
 tc_pca
 tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
                    plot_title = "PCA - Cell type")
+pp(file = "figures/tc_pca_nosize.pdf")
+tc_pca
+dev.off()
 tc_pca
 
-tc_pca_nosize <- plot_pca(tc_norm, plot_labels = FALSE)
-tc_pca_nosize
-
-write.csv(tc_pca$table, file = "excel/tc_donor_pca_coords.csv")
+write.csv(tc_pca[["table"]], file = "excel/tc_donor_pca_coords.csv")
 tc_cf_norm <- set_expt_batches(tc_norm, fact = "visitnumber")
 tc_cf_corheat <- plot_corheat(tc_cf_norm, plot_title = "Heirarchical clustering:
          cell types")
@@ -756,6 +758,9 @@ different from the innate immune cell types.
 fig1v2_norm <- normalize_expt(tc_type, transform = "log2",
                               convert = "cpm", norm = "quant", filter = TRUE)
 fig1v2_pca <- plot_pca(fig1v2_norm, cis = FALSE)
+pp(file = "figures/tc_type_v2.pdf")
+fig1v2_pca
+dev.off()
 fig1v2_pca
 ```
 
@@ -1388,16 +1393,44 @@ limited to the Tumaco samples.
 
 ### All samples
 
+#### Figure xx panels A+B
+
 ```{r}
 t_clinical_nobiop_norm <- normalize_expt(t_clinical_nobiop, filter = TRUE, norm = "quant",
                                          convert = "cpm", transform = "log2")
 t_clinical_nobiop_pca <- plot_pca(t_clinical_nobiop_norm, plot_labels = FALSE)
-t_clinical_nobiop_pca$plot
+pp(file = "figures/t_clinical_nobiop_figxxa.pdf")
+t_clinical_nobiop_pca[["plot"]]
+dev.off()
+t_clinical_nobiop_pca
 
 t_clinical_nobiop_nb <- normalize_expt(t_clinical_nobiop, filter = TRUE, convert = "cpm",
                                        transform = "log2", batch = "svaseq")
 t_clinical_nobiop_nb_pca <- plot_pca(t_clinical_nobiop_nb, plot_labels = FALSE)
-t_clinical_nobiop_nb_pca$plot
+pp(file = "figures/t_clinical_nobiop_sva_figxxb.pdf")
+t_clinical_nobiop_nb_pca[["plot"]]
+dev.off()
+t_clinical_nobiop_nb_pca
+```
+
+#### Figure xx panels C+D
+
+```{r}
+tc_clinical_nobiop_norm <- normalize_expt(tc_clinical_nobiop, filter = TRUE, norm = "quant",
+                                          convert = "cpm", transform = "log2")
+tc_clinical_nobiop_pca <- plot_pca(tc_clinical_nobiop_norm, plot_labels = FALSE)
+pp(file = "figures/tc_clinical_nobiop_figxxc.pdf")
+tc_clinical_nobiop_pca[["plot"]]
+dev.off()
+tc_clinical_nobiop_pca
+
+tc_clinical_nobiop_nb <- normalize_expt(tc_clinical_nobiop, filter = TRUE, convert = "cpm",
+                                        transform = "log2", batch = "svaseq")
+tc_clinical_nobiop_nb_pca <- plot_pca(tc_clinical_nobiop_nb, plot_labels = FALSE)
+pp(file = "figures/tc_clinical_nobiop_sva_figxxd.pdf")
+tc_clinical_nobiop_nb_pca[["plot"]]
+dev.off()
+tc_clinical_nobiop_nb_pca
 ```
 
 Now we have a new, smaller set of primary samples which are

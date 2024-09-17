@@ -114,3 +114,55 @@ These begin at section 7.4.1.4.  I just realized I changed the color
 scheme for these because they were not showing up on my screen with
 the black/grey/white colors!  I need to go back and change them
 back to the greyscale so they match.
+
+# Introduction to the singularity container
+
+Of the various options, I found singularity to be the most attractive.
+I therefore wrote a default Makefile with a few targets to create and
+manipulate images because I cannot be bothered to remember all of the
+various commands.
+
+# The images
+
+I am hoping to create 2 image templates for the TMRC analyses:
+preprocessing and analyses. I will therefore have a few locally
+maintained shell scripts which contain the base image setup tasks, the
+tasks required to setup the tools used, download the data, and perform
+the work.
+
+# Setting up the base image
+
+I intend to use Debian stable.  I am copying the required setup files
+into the current working directory and invoking make to create
+the container.  I have a few targets which are intended to make this
+easier to remember.
+
+## Creating the base image
+
+The following command runs singularity with options suitable to create
+the image.  This to me is a little unnerving, because a bunch of stuff
+gets run as root.
+
+```{bash, eval=FALSE}
+make
+```
+
+## Testing stuff out and making changes
+
+The overlay target drops the user into the container with R/W
+permissions.  It creates a directory 'cure_Fail_analyses_overlay' which
+may be modified at will.
+
+```{bash, eval=FALSE}
+make cure_fail_analyses.overlay
+```
+
+## Using the container for arbitrary Rmd/md files
+
+The container's runscript has some logic built in which can process
+arbitrary markdown documents into html via knitr and pandoc.
+
+```{bash, eval=FALSE}
+cd someplace_with_Rmd
+/locationofcontainers/cure_fail_host_analyses.sif -i markdown01.Rmd:markdown02.Rmd
+```
