@@ -64,7 +64,6 @@ data/05enrichment.Rmd /data/05enrichment.Rmd
 data/06lrt_gsva.Rmd /data/06lrt_gsva.Rmd
 data/07wgcna.Rmd /data/07wgcna.Rmd
 data/08classifier_highvar.Rmd /data/08classifier_highvar.Rmd
-data/09varcor_regression.Rmd /data/09varcor_regression.Rmd
 data/atb.bib /data/atb.bib
 
 

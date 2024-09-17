@@ -28,3 +28,5 @@ export R_LIBS_USER=/data/R
 export R_LIBS_SITE="${R_LIBS_USER}"
 export R_MAX_NUM_DLLS=512
 export DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:04differential_expression_tumaco.Rmd:05enrichment.Rmd:06lrt_gsva.Rmd:07wgcna.Rmd:08classifier_highvar.Rmd"
+export PARALLEL=TRUE
+export PARALLEL=TRUE
