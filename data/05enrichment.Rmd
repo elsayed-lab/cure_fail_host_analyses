@@ -416,7 +416,7 @@ enrichplot::dotplot(t_cf_clinical_cp_up[["enrich_objects"]][["BP_all"]])
 ```{r}
 t_cf_clinical_cp_down <- simple_clusterprofiler(
   t_clinical_cf_sig_sva_down,
-  excel = glue("{xlsx_prefix}/Gene_Set_Overrepresentation/clinical_fail_up_cp-v{ver}.xlsx"))e
+  excel = glue("{xlsx_prefix}/Gene_Set_Overrepresentation/clinical_fail_up_cp-v{ver}.xlsx"))
 enrichplot::dotplot(t_cf_clinical_cp_down[["enrich_objects"]][["BP_all"]])
 ```
 
@@ -1205,7 +1205,7 @@ I like cats!
 
 ```{r}
 t_cf_monocyte_v1_sig_sva_up_cp <- simple_cprofiler(t_cf_monocyte_v1_sig_sva_up,
-                                                   t_cf_monocyte_v1_table_sva_up,
+                                                   t_cf_monocyte_v1_table_sva,
                                                    orgdb = "org.Hs.eg.db")
 enrichplot::dotplot(t_cf_monocyte_v1_sig_sva_up_cp[["enrich_objects"]][["BP_all"]])
 t_cf_monocyte_v1_topn_gsea <- plot_topn_gsea(t_cf_monocyte_v1_sig_sva_cp)
@@ -1246,10 +1246,10 @@ t_cf_neutrophil_v1_sig_sva_both_gp
 
 ```{r}
 t_cf_neutrophil_v1_sig_sva_up_cp <- simple_cprofiler(t_cf_neutrophil_v1_sig_sva_up,
-                                                   t_cf_neutrophil_v1_table_sva,
-                                                   orgdb = "org.Hs.eg.db")
+                                                     t_cf_neutrophil_v1_table_sva,
+                                                     orgdb = "org.Hs.eg.db")
 enrichplot::dotplot(t_cf_neutrophil_v1_sig_sva_up_cp[["enrich_objects"]][["BP_all"]])
-t_cf_neutrophil_v1_topn_gsea <- plot_topn_gsea(t_cf_neutrophil_v1_sig_sva_cp)
+t_cf_neutrophil_v1_topn_gsea <- plot_topn_gsea(t_cf_neutrophil_v1_sig_sva_up_cp)
 t_cf_neutrophil_v1_topn_gsea[["GO_outcome_up"]][[1]]
 ```
 
@@ -1287,10 +1287,10 @@ t_cf_eosinophil_v1_sig_sva_both_gp
 
 ```{r}
 t_cf_eosinophil_v1_sig_sva_up_cp <- simple_cprofiler(t_cf_eosinophil_v1_sig_sva_up,
-                                                   t_cf_eosinophil_v1_table_sva,
-                                                   orgdb = "org.Hs.eg.db")
+                                                     t_cf_eosinophil_v1_table_sva,
+                                                     orgdb = "org.Hs.eg.db")
 enrichplot::dotplot(t_cf_eosinophil_v1_sig_sva_up_cp[["enrich_objects"]][["BP_all"]])
-t_cf_eosinophil_v1_topn_gsea <- plot_topn_gsea(t_cf_eosinophil_v1_sig_sva_cp)
+t_cf_eosinophil_v1_topn_gsea <- plot_topn_gsea(t_cf_eosinophil_v1_sig_sva_up_cp)
 t_cf_eosinophil_v1_topn_gsea[["GO_outcome_up"]][[1]]
 ```
 

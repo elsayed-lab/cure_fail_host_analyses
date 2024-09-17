@@ -174,6 +174,7 @@ rownames(t_de_cf) <- t_de_cf[["row.names"]]
 t_de_cf[["row.names"]] <- NULL
 t_de_cf_down <- t_de_cf[, c("deseq_logfc", "deseq_adjp", "deseq_basemean", "deseq_lfcse")]
 t_de_cf <- rbind.data.frame(t_de_cf_up, t_de_cf_down)
+top_bottom_ids <- rownames(t_de_cf)
 ```
 
 ## A function to help compare methods to DESeq2
@@ -591,7 +592,7 @@ Differential Expression results, that the interleukin response will be
 a likely candidate.
 
 ```{r}
-importance_gp <- simple_gprofiler(rownames(head(rf_variables)), n = comparison_n)
+importance_gp <- simple_gprofiler(rownames(head(rf_variables, n = comparison_n)))
 importance_gp
 ```
 
@@ -664,7 +665,7 @@ it isn't theoretically very useful for this series of methological
 tests.  As a result, the following block is also not particularly
 helpful -- though I suspect the results are identical to what follows.
 
-```{r}
+```{r, eval=FALSE}
 glm_variable_importance <- varImp(glm_train_fit)
 ## Oh, this only produces 100 entries -- so me getting the top 400 is silly.
 glm_variables <- glm_variable_importance[["importance"]] %>%

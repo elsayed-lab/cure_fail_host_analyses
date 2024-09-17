@@ -71,6 +71,16 @@ of the container in different environments:
     longer, but the maximum memory usage falls to ~ 30-40G.  If your
     machine has less than that, then I think some things are doomed to
     fail.
+3.  methods: Not in the Makefile.  By default, my pairwise
+    differential expression method attempts to perform ~ 6 different
+    ways of doing the analyses.  This is the primary reason it is so
+    memory hungry. An easy way to dramatically decrease the memory
+    usage and time is to edit the top of the 01datastructures.Rmd
+    document and set some more elements of the 'methods' variable to
+    FALSE.  Just note that our tables primarily rely on the DESeq2
+    results, so if you turn that off, you will by definition get
+    different results.  Also, it is fun to poke at the different
+    methods and see how their various assumptions affect the results.
 
 # Generating the html/rda/excel output files
 

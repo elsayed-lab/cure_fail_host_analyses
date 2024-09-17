@@ -57,7 +57,9 @@ rundate <- format(Sys.Date(), format = "%Y%m%d")
 
 rmd_file <- "01datasets.Rmd"
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
-data_structures <- c()
+methods <- list("basic" = TRUE, "deseq" = TRUE, "dream" = FALSE,
+                "ebseq" = FALSE, "edger" = TRUE, "limma" = TRUE, "noiseq" = TRUE)
+data_structures <- c(methods)
 ```
 
 # TODO
@@ -101,6 +103,7 @@ testthat::expect_true(file.exists(samplesheet))
 demographics <- "sample_sheets/tmrc3_demographicsv2.xlsx"
 hslp_samplesheet <- "sample_sheets/tmrc3_samples_pruned.xlsx"
 species_identities <- "sample_sheets/identified_parasite_species.xlsx"
+data_structures <- c(data_structures, "samplesheet", "demographics")
 ```
 
 # Annotation Collection
