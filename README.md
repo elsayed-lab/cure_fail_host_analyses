@@ -12,6 +12,14 @@ the various intermediate rda files for sharing with others, etc.  In
 addition, one may use the various singularity shell commands to enter
 the container and play with the data.
 
+# Cheater installation
+
+Periodically I put a copy of the pre-built container here:
+
+[https://elsayedsingularity.umiacs.io/](https://elsayedsingularity.umiacs.io/)
+
+It probably does not have the newest changes.
+
 # Installation
 
 Grab a copy of the repository:
