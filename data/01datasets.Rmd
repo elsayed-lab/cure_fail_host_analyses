@@ -640,13 +640,13 @@ color_choices <- list(
       "first" = "#33EE33",
       "later" = "#023302"),
     "visit" = list(
-      "v1" = "#33EE33",
-      "v2" = "#11AA11",
-      "v3" = "#023302"),
+      "v1" = "#CCCCCC",
+      "v2" = "#666666",
+      "v3" = "#111111"),
     "visit2" = list(
-      "1" = "#33EE33",
-      "2" = "#11AA11",
-      "3" = "#023302"),
+      "1" = "#CCCCCC",
+      "2" = "#666666",
+      "3" = "#111111"),
     "visitbi" = list(
       "v1" = "#BB0000",
       "vother" = "#0000BB"),
@@ -2338,6 +2338,68 @@ data_structures <- c(data_structures, "c_visitcf_neutrophil")
 ```
 
 # Summarize: Tabulate sample numbers
+
+## Both
+
+```{r}
+ncol(exprs(tc_clinical))
+sum(pData(tc_clinical)[["finaloutcome"]] == "cure")
+sum(pData(tc_clinical)[["finaloutcome"]] == "failure")
+
+all_types[["biopsy"]]
+sum(pData(tc_biopsies)[["finaloutcome"]] == "cure")
+sum(pData(tc_biopsies)[["finaloutcome"]] == "failure")
+
+all_types[["eosinophils"]]
+sum(pData(tc_eosinophils)[["finaloutcome"]] == "cure")
+sum(pData(tc_eosinophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv1_eosinophils))
+sum(pData(tcv1_eosinophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv1_eosinophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv2_eosinophils))
+sum(pData(tcv2_eosinophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv2_eosinophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv3_eosinophils))
+sum(pData(tcv3_eosinophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv3_eosinophils)[["finaloutcome"]] == "failure")
+
+all_types[["monocytes"]]
+sum(pData(tc_monocytes)[["finaloutcome"]] == "cure")
+sum(pData(tc_monocytes)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv1_monocytes))
+sum(pData(tcv1_monocytes)[["finaloutcome"]] == "cure")
+sum(pData(tcv1_monocytes)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv2_monocytes))
+sum(pData(tcv2_monocytes)[["finaloutcome"]] == "cure")
+sum(pData(tcv2_monocytes)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv3_monocytes))
+sum(pData(tcv3_monocytes)[["finaloutcome"]] == "cure")
+sum(pData(tcv3_monocytes)[["finaloutcome"]] == "failure")
+
+all_types[["neutrophils"]]
+sum(pData(tc_neutrophils)[["finaloutcome"]] == "cure")
+sum(pData(tc_neutrophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv1_neutrophils))
+sum(pData(tcv1_neutrophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv1_neutrophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv2_monocytes))
+sum(pData(tcv2_neutrophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv2_neutrophils)[["finaloutcome"]] == "failure")
+
+nrow(pData(tcv3_neutrophils))
+sum(pData(tcv3_neutrophils)[["finaloutcome"]] == "cure")
+sum(pData(tcv3_neutrophils)[["finaloutcome"]] == "failure")
+```
+
+## Tumaco
 
 Here is an outline of the samples in their current state:
 

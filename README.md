@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/712104518.svg)](https://zenodo.org/doi/10.5281/zenodo.13798788)
+
 # Introduction
 
 Define, create, and run the analyses used in the paper:

@@ -21,6 +21,9 @@ output:
    smooth_scroll: false
 ---
 
+
+[![DOI](https://zenodo.org/badge/712104518.svg)](https://zenodo.org/doi/10.5281/zenodo.13798788)
+
 # Introduction
 
 The R markdown documents in this directory are intended to provide a
@@ -46,12 +49,424 @@ when run it uses the various installed R packages to 'render' the Rmd
 files in /data to freshly created html.  This README is the first
 document rendered.
 
+# Figure/Table locations
+
+As of 20240919, Maria Adelaida kindly sent me the putatively final set
+of figures/tables.  I am going to lay out the location in the html
+logs and their Rmd parents where these may be found.  If you wish to
+play along, make sure you run the entire 01datastructures.Rmd.
+
+Also, this container is automatically regenerated and rerun when I
+make changes; so one may just go here to play along (that is where I
+am going to hunt down the figures/tables):
+
+https://containerbook.umiacs.io/
+
+## Figure 1
+
+These numbers are coming from 01datastructures:  when considering the
+samples from the perspective of how many people fall into each
+category, that is coming directly from section 4.1 "Metadata Sources"
+and the demographics xlsx file.  This provides the number of people
+who fall into each category of panel A/B.
+
+## Figure 2
+
+### Panel A
+
+TODO: Clarify v1/v2/v3 vs. Pre-Tx, Mid-Tx, End-Tx in the notebook
+
+This is also derived from 01datastructures, but from the perspective
+of the numbers of samples which survive our various filters.  Thus, to
+arrive at these numbers, one should start at section 6.1 "Create
+Expressionset." and wander through the document; however doing so will
+likely make most people sad because it is a long journey.  Instead,
+you may skip down to section 14 "Summarize: Tabulate sample numbers".
+The section labeled 'Both' provides these numbers.  Note, this table
+used to be just Tumaco, which follows.
+
+The numbers of samples in each group are restated in the summaries.
+The only real caveat is that I wrote them as 'visit1' or 'v1' for
+Pre-Tx, 'visit2' for Mid-Tx, and 'visit3' for End-Tx.
+
+Another way to recapitulate these numbers is to check out the sankey
+plots in section 8 'Visualize the sample breakdown'.
+
+### Panel B
+
+Found in 02visualization, section 8 "Global views of all cell types"
+Hey, check it, different types of immune cells are different!
+
+### Panel C
+
+Ibid.  Both panels are actually a little further down in section 8.1.
+
+## Figure 3
+
+Maria Adelaida did a tremendous amount of work to move the various
+ggplot legends around so that this fits in a single panel in a
+coherent fashion.
+
+### Panel A
+
+Section 9.8 of 02visualization: "PCA: Compare clinics"
+
+### Panel B
+
+Section 9.5 of 02visualization: "Eosinophils by clinic"
+
+### Panel C
+
+Section 9.6 of 02visualization: "Monocytes by clnic"
+
+### Panel D
+
+Section 9.7 of 02visualization: "Neutrophils by clnic"
+
+### Panel E
+
+Section 9.1 of 02visualization: "Biopsies"
+
+## Figure 4
+
+### Panel A, left
+
+Section 10.2.4 "Figure 4A: Monocytes"
+
+### Panel A, middle
+
+Section 10.2.8 "Figure 4A: Eosinophils"
+
+### Panel A, right
+
+Section 10.2.6 "Figure 4A: Neutrophils"
+
+## Panel B
+
+These move to the document 04differential_expression_tumaco.
+
+### Panel B, left, middle, and right
+
+Section 7.0.4 "Figure 4B: Volcano plots"  For some reason I did not
+have separate sections for each cell type.
+
+### Panel C
+
+TODO: Add similar venn ~ section 8
+
+I played with versions of this using AUCC and UpSet plots throughout
+the 04differential_expression_tumaco document; but did not generate
+this specific image.  (Maybe I should make a version of it?)
+
+## Figure 5
+
+TODO: Clarify section names
+
+I did not perform any of the STRING analyses and therefore am unable
+to comment on panels A,C,E,G.  I should bug Alejandro.
+
+The lower panels are all coming from 05enrichment and are using the
+treeplot() result from gotermsim() of the gProfiler2 results.
+
+### Panel B
+
+05enrichment, section 2.10.1 "gProfiler" (I am going to change these
+headings to be a bit more informative...)
+
+### Panel D
+
+05enrichment, Section 2.12.1 "gProfiler".
+
+### Panel F
+
+Ibid, Section 2.11.1 "gProfiler"
+
+### Panel H
+
+Ibid, Section 2.4.1 "gProfiler" but it is pretty far down; just before
+the clusterProfiler analyses.
+
+## Figure S1
+
+TODO: Clarify sections
+
+Head back to 02visualization; this is where Theresa taught me
+regression analysis!
+
+### Panel A
+
+02visualization, Near the bottom of section 7.2 "Regression analyses
+vs outcome"  (I need to rename these sections too, these are cross
+correlations, not regression; I used to have them all together in a
+big pile and split them up, but didn't properly rename the headings.)
+
+### Panel B
+
+02visualization, 7.2.1 "Copy these with only the Tumaco people"
+
+### Panel C
+
+Ibid, Section 7.2.2, look for the evaluation of:
+'tc_log_iterative_regression_demographics[["forest"]]'
+
+### Panel D
+
+Ibid.  Seek the evaluation of:
+'t_log_iterative_regression_demographics[["forest"]]'
+
+### Panels E and F
+
+TODO: readd
+
+Hmm I deleted these from my notebook, I did not think we were going to
+use them but instead only include C/D.  Adding them back momentarily.
+
+## Figure S2
+
+### Panel B/C
+
+These are waay down in Section 16 "Parasite distribution" of 02visualization.
+
+## Figure S4
+
+TODO: rename section
+
+One must return to 01datastructures for this image.  It was used to
+define the coverage cutoff for filtering samples and is found at
+section 7.2 "Figure S2: Non-zero genes before sample filtering"  (I
+guess I should rename this too)
+
+## Figure S5
+
+These are all scattered through 02visualization.
+
+### Panel A
+
+Section 9.8 "Compare clinics"
+
+### Panel B
+
+Section 8.5 "Eosinophils by clinic"  No fails from Cali for
+Eosinophils!
+
+### Panel C
+
+Section 9.6 "Monocytes by clinic"
+
+### Panel D
+
+Section 9.7 "Neutrophils by clinic"
+
+### Panel E
+
+Section 9.1 "Biopsies by clinic"
+
+### Panel F
+
+At the bottom of section 9.2.3 "Eosinophil samples, both clinics"
+
+### Panel G
+
+At the bottom of section 9.2.4 "Monocyte samples, both clinics"
+
+### Panel H
+
+At the bottom of section 9.2.5 "Neutrophil samples, both clinics"
+
+## Figure S6
+
+TODO: Someone asked me to changes these colors to this vicious set of
+greens.  The original black/grey/white is nicer.
+
+### Panel A/B/C
+
+These images are scattered through section 11.4.1 "Comparing 3 visits
+by cell type" (I changed the colors back just now 20240919, those
+greens are a horror show, where was April to yell at me!?)
+
+### Panel D
+
+These bottom panels are comparing my simplified model to a more
+thorough visit-in-model analysis.  This first, monocyte comparison is
+in section 6.0.2 of 04differential_expression_tumaco.
+
+Note, hpgltools is now able to handle arbitrarily complex models
+across all methods (deseq/edger/etc...) though I didn't finish it
+until a few days ago and it has not yet been fully tested.
+
+### Panel E
+
+Ibid, section 7.0.3
+
+### Panel F
+
+Ibid, section 7.0.2
+
+TODO: This portion of the 04differential_expression_tumaco is poorly
+organized.
+
+## Figure S7
+
+This images harken back to 02visualization
+
+### Panel A
+
+Section 10.2.1 of 02visualization
+
+### Panel B
+
+The next image in 10.2
+
+## Figure S8, S9, S10
+
+These are not in my notebooks.
+
+## Figure S11
+
+### Panel A
+
+Section 10.2.1
+
+### Panel B
+
+and the immediately following image
+
+### Panel C
+
+I think this is the only image taken from
+03differential_expression_both; it comes from section 5.2.1; in my
+last iteration of the notebook it failed because I forgot to tell it
+to use the color_choices (fixed)
+
+## Table S1
+
+This was manually collated by Maria Adelaida; I think all the numbers
+do correspond to the regression f-values/p-values.
+
+## Table S2
+
+This is a very slightly modified copy of the sample sheet in
+sample_sheets/tmrc3_samples_pruned.xlsx  One noteworthy thing: if one
+reprocesses the raw data and runs 'gather_preprocessing_metadata()',
+it will suck up all the logs from any tools for which I have written
+regexes and append the results as columns at the right of this.  I am
+more than a little proud of that.
+
+## Table S3
+
+This is a slightly modified copy of the result of the 'svpc_fstats()'
+invocations found at the end of Section 17 in 02visualization.  (my
+little function adds a funky heatmap to the output)
+
+## Table S4
+
+This is a slightly modified copy of two results:
+
+### Biopsies DE
+
+This is a modified version of the result when one invokes
+combine_de_tables(), as per section 6.0.2 of
+04differential_expression_tumaco; this container should therefore
+provide those numbers if one looks in
+'analyses/4_tumaco/DE_Cure_Fail/Biopsies/t_biopsy_cf_table_sva-v202409.xlsx'
+That xlsx workbook has a worksheet named 'outcome' (the second); this
+worksheet comprises columns Q-V from it.  (also yay! the numbers are
+the same between my container (which changes constantly and gets
+rebuilt with each change) and the copy that was used for the paper!)
+
+### Bipsies GO
+
+Looking more carefully at this, I think this is not from my
+overrepresentation analysis; but came from STRING?
+
+The invocation for my version of this resides in 05enrichment, section
+2.9.1 and the xlsx file in the container should be found in
+'analyses/Gene_Set_Enrichment/t_cf_biopsy_sig_sva_up_gp-v202409.xlsx'
+for gProfiler, and with a similar name containing 'cp' for
+clusterProfiler.
+
+## Table S5
+
+This is a redacted combination of a few files:
+
+### worksheet Monocytes
+
+Section 6.0.2 provides the invocation of combine_de_tables() which
+produces the
+'analysis/4_Tumaco/DE_Cure_Fail/Monocytes/t_monocyte_cf_table-sva-v202409.xlsx'
+that comprises the logFC etc values in this worksheet.  Interestingly,
+the top 5 genes all shifted down in logFC by ~ 0.002 in my
+container-derived worksheet vs this table.  I think that is an
+acceptable difference?  I did spot check a few genes in the top 5000
+and it looks like the order is maintained.
+
+### worksheet Neutrophils
+
+Same logic, but Section 7.0.2 with the analagously named xlsx file in
+the Neutrophils directory; these numbers also appear to have
+shifted slightly (but this time by ~ 0.001 up to 0.1 logFC) and I do
+see a couple of genes out of order...  I am going to check in with
+Maria Adelaida.
+
+### worksheet Eosinophils
+
+Ibid, section 7.0.3.  Once again the values look to have shifted down
+by ~ 0.001 to 0.01 logFC.
+
+### worksheet All_innate
+
+This is actually way earlier in the differential expression document,
+section 3.1 when the variable 't_cf_clinicalnb_table_sva' is created
+to produce the xlsx file
+'analyses/4_tumaco/DE_Cure_Fail/All_Samples/t_clinical_nobiop_cf_table_sva-v202409.xlsx'
+
+These numbers match up pretty much exactly (I set the number of
+significant digits to 4 I think, but this worksheet is 3?)
+
+## Table S6
+
+I do not think they used my gProfiler/clusterProfiler results for
+this.
+
+## Table S7
+
+This comes from 06lrt_gsva, section 3; seek out the invocation of:
+
+'t_clinical_gsva_h <- simple_gsva(
+    t_clinical, signature_category = "h")'
+
+with the caveat that I think the C2 and C7 results are more
+interesting.  Also, the results produced by the container are sparser
+with respect to the annotations because I did not want to steal the
+gmt/xml annotations from broad.  If you happen to have the xml/gmt
+files, I left the original invocations there so you can get the full
+table with the paper titles etc (also, note that later versions of
+mSigDB changed the xml format so that it no longer parses properly in
+R; so those functions are now smrt enough to handle the new gmt/json
+files).
+
+## Table S8
+
+I am reasonably certain that Alejandro produced the inputs for this;
+however the container produces nearly identical versions of the pieces
+in 07wgcna, section 9.
+
+## Table S9
+
+This is not run automatically by the container because it will run
+most computers out of memory and/or take a really long time.  If your
+computer has ~ 512G ram, open 08classifier_highvar.Rmd and run section
+11.2; the resulting xlsx output files should look like this (except
+cooler because I add some plots).
+
 # Structure
 
 The Rmd files may be rendered in any order with one very important
 exception: the 01datastructures.Rmd file must be run first.  It reads
 all of the sample sheets and count tables and writes out a series of
 data files used by all the other documents.
+
+Note: All the references are in the documents, not here.
 
 ## 01datastructures
 
@@ -63,57 +478,72 @@ large expressionSet.  It tallies up the samples according to many/most
 of the likely factors of interest, filters the data, and extracts the
 various subsets into separate datastructures.
 
-### Figure 1: Participant recruitment and study design
-
-The numbers of people involved in the study may be found throughout
-this document, primarily in the sections with titles starting with:
-'Summarize'.
-
-### Figure S2: Evaluation of sequencing depth per sample
-
-This figure is about a quarter of the way down in an eponymously named
-block.  A svg format version of that image is created in the figures/
-directory in this location.  The datastructure used is named
-'tc_valid', because it contains both the Tumaco and Cali data (tc)
-after removing the most troublesome samples (valid).
-
-### Figure 2A: Global gene expression profiles of blood cells
-
-The numbers of samples in each group are restated in the summaries.
-The only real caveat is that I wrote them as 'visit1' or 'v1' for
-Pre-Tx, 'visit2' for Mid-Tx, and 'visit3' for End-Tx.
-
-One way to recapitulate these numbers is to check out the sankey plots
-in section 8 'Visualize the sample breakdown'.  In addition, there is
-an explicit counting of the samples by celltype/time/CF in section 11
-'Summarize: tabulate sample numbers.'  Looking at the Rmd file in this
-section; the numbers are all generated by querying the number of
-samples in each subset datastructure followed by counting up the
-number of cures/fails.
-
 ## 02visualization
 
-This document is dominated by a long series of PCA explorations.  It
-is basically a playground for me to poke at the various data subsets
-in order to try to get a feeling for what is the most appropriate way
-to think about the data.  It was where we eventually decided that we
-cannot use the Cali data, for example.
+Dominated by a long series of PCA explorations.  It is basically a
+playground for me to poke at the various data subsets in order to try
+to get a feeling for what is the most appropriate way to think about
+the data.  It was where we eventually decided that we cannot use the
+Cali data, for example.
 
-### Figure 2B/C
+In later iterations it included a series of regression analyses and
+further examinations into the sensitivities of the PCA and surrogate
+variable analyses.  It should be noted that these analyses were
+entirely Theresa's idea, I copied them into this document and made
+some minor changes.
 
-This should be found in the eponymously named section.  The 'tc_valid'
-datastructure was normalized via log2(quant(cpm(filter())))ing and
-a pairwise correlation heatmap and PCA were plotted.  Weirdly, I do
-not have an explicit printing of the SVG version of these panels, I
-think because we opened them post-facto in inkscape to move around the
-legends.
+## 03differential_expression_both
 
-### Figure S4A/B/C
+This document performs some differential expression analyses using
+both the samples from Cali and Tumaco.  Partially this was done to
+assuage my interest, and partially to reinforce the idea that the Cali
+samples really do not play well with others.
 
-These begin at section 7.4.1.4.  I just realized I changed the color
-scheme for these because they were not showing up on my screen with
-the black/grey/white colors!  I need to go back and change them
-back to the greyscale so they match.
+## 04differential_expression_tumaco
+
+Ibid, but only Tumaco.  This is the real meat of the analysis and
+seeks to try out various ways of performing differential expression
+using the Tumaco data in order to see which provide the most robust
+ways of examining the potential questions in the data.
+
+## 05enrichment
+
+Read the xlsx files from 03 and 04 above and pass the resulting gene
+sets and/or DE tables to gProfiler2 and clusterProfiler.  gProfiler
+was used to perform over-representation analyses of the significantly
+increased/decreased genes (or both together) of the various contrasts
+vs. the databases provided by gProfiler.  The same task was performed
+using clusterProfiler with two exceptions: clusterProfiler uses the
+orgdb annotations for its gene groups and is therefore (by default,
+but not exclusively) limited to GO/KEGG/DAVID; conversely, one may
+trivially pass the full DE table to clusterProfiler and thus perform
+the full GSEA analysis. (I have been playing with passing reactome
+(via ReactomePA) and mSigDB to these methods).
+
+## 06lrt_gsva
+
+Theresa also suggested we try a series of Likelihood Ratio Tests (LRT)
+to examine trends in the data; thus making DESeq2/EdgeR sensitive to
+not only increased/decreased gene expression across two conditions,
+but shared/divergent trends across multiple factors in the metadata.
+This document provides a version of this.
+
+At the same time we were doing that, she and I put together a
+simplified method for querying the mSigDB via GSVA.  These queries are
+in this document too.
+
+## 07wgcna
+
+Alejandro performed a set of WGCNA analyses using the normalized
+expression values.  He kindly sent me a copy of his R script and I
+reformatted it somewhat into this document.
+
+## 08classifier_highvar
+
+I wanted to explore machine learning classifiers. I had this dataset
+(and the parasite transcriptomes) open, so I decided to play with
+them.  It was never intended for publication by me but as a fun
+learning experience; but here it is...
 
 # Introduction to the singularity container
 

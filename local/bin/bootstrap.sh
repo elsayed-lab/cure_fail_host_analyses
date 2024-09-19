@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -x
 source /usr/local/etc/bashrc
 
 ## This file is intended to document my first container installation
@@ -65,7 +64,7 @@ echo "${last}" | tee -a ${log}
 
 if [[ -n "${HPGLTOOLS_COMMIT}" ]]; then
     echo "Explicitly setting to the commit: ${HPGLTOOLS_COMMIT}."
-    git reset "${HPGLTOOLS_COMMIT}" --hard
+    reset=$(cd hpgltools && git reset "${HPGLTOOLS_COMMIT}" --hard)
 else
     echo "Using the current HEAD of the hpgltools repository: ${HPGL_VERSION}."
 fi
