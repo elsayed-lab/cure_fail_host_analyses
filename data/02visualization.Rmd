@@ -40,7 +40,6 @@ pre {
 ```{r, include=FALSE}
 library(broom) ## Provides tidy methods for lm/glm/etc
 library(dplyr)
-##library(EuPathDB)
 library(forcats)
 library(ggplot2)
 library(ggstatsplot)
@@ -1157,7 +1156,7 @@ tc_clinic_type_pca
 tc_clinic_type_nb <- normalize_expt(tc_clinic_type, transform = "log2", convert = "cpm",
                                     batch = "svaseq", filter = TRUE)
 tc_clinic_type_nb_pca <- plot_pca(tc_clinic_type_nb)
-tc_clinic_type_nb_pca$plot
+tc_clinic_type_nb_pca
 pp(file = "figures/figure3a_all_samples.svg")
 tc_clinic_type_nb_pca$plot
 dev.off()

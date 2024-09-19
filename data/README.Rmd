@@ -90,16 +90,49 @@ The only real caveat is that I wrote them as 'visit1' or 'v1' for
 Pre-Tx, 'visit2' for Mid-Tx, and 'visit3' for End-Tx.
 
 Another way to recapitulate these numbers is to check out the sankey
-plots in section 8 'Visualize the sample breakdown'.
+plots in section 8 'Visualize the sample breakdown'.  An example invocation looks like:
+
+```{r, eval=FALSE}
+clinic_type_outcome_sankey <- plot_meta_sankey(
+  tc_valid, factors = c("clinic", "typeofcells", "finaloutcome"),
+  drill_down = TRUE, color_choices = color_choices)
+clinic_type_outcome_sankey
+
+clinic_ethnicity_outcome_sankey <- plot_meta_sankey(
+  tc_valid, factors = c("clinic", "etnia", "finaloutcome"),
+  drill_down = TRUE, color_choices = color_choices)
+clinic_ethnicity_outcome_sankey
+
+clinic_sex_outcome_sankey <- plot_meta_sankey(
+  tc_valid, factors = c("clinic", "sex", "finaloutcome"),
+  drill_down = TRUE, color_choices = color_choices)
+clinic_sex_outcome_sankey
+```
 
 ### Panel B
 
 Found in 02visualization, section 8 "Global views of all cell types"
 Hey, check it, different types of immune cells are different!
 
+One invocation looks like this (there are a few versions):
+
+```{r, eval=FALSE}
+tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
+                    plot_title = "PCA - Cell type", size_column = "visitnumber")
+tc_pca
+```
+
 ### Panel C
 
 Ibid.  Both panels are actually a little further down in section 8.1.
+
+Here is the invocation:
+
+```{r, eval=FALSE}
+tc_cf_corheat <- plot_corheat(tc_cf_norm, plot_title = "Heirarchical clustering:
+         cell types")
+tc_cf_corheat
+```
 
 ## Figure 3
 
@@ -111,21 +144,46 @@ coherent fashion.
 
 Section 9.8 of 02visualization: "PCA: Compare clinics"
 
+```{r, eval=FALSE}
+tc_clinic_type_nb_pca <- plot_pca(tc_clinic_type_nb)
+tc_clinic_type_nb_pca
+```
+
 ### Panel B
 
 Section 9.5 of 02visualization: "Eosinophils by clinic"
+
+```{r, eval=FALSE}
+tc_eosinophils_pca <- plot_pca(tc_eosinophils_norm, plot_labels = FALSE)
+tc_eosinophils_pca
+```
 
 ### Panel C
 
 Section 9.6 of 02visualization: "Monocytes by clnic"
 
+```{r, eval=FALSE}
+tc_monocytes_pca <- plot_pca(tc_monocytes_norm, plot_labels = FALSE)
+tc_monocytes_pca
+```
+
 ### Panel D
 
 Section 9.7 of 02visualization: "Neutrophils by clnic"
 
+```{r, eval=FALSE}
+tc_neutrophils_pca <- plot_pca(tc_neutrophils_norm, plot_labels = FALSE)
+tc_neutrophils_pca
+```
+
 ### Panel E
 
 Section 9.1 of 02visualization: "Biopsies"
+
+```{r, eval=FALSE}
+tc_biopsies_pca <- plot_pca(tc_biopsies_norm)
+tc_biopsies_pca
+```
 
 ## Figure 4
 
@@ -133,13 +191,31 @@ Section 9.1 of 02visualization: "Biopsies"
 
 Section 10.2.4 "Figure 4A: Monocytes"
 
+```{r, eval=FALSE}
+t_monocyte_pca <- plot_pca(t_monocyte_norm,
+  plot_labels = FALSE)
+t_monocyte_pca
+```
+
 ### Panel A, middle
 
 Section 10.2.8 "Figure 4A: Eosinophils"
 
+```{r, eval=FALSE}
+t_eosinophil_pca <- plot_pca(t_eosinophil_norm,
+                             plot_labels = FALSE)
+t_eosinophil_pca
+```
+
 ### Panel A, right
 
 Section 10.2.6 "Figure 4A: Neutrophils"
+
+```{r, eval=FALSE}
+t_neutrophil_pca <- plot_pca(t_neutrophil_norm,
+                             plot_labels = FALSE)
+t_neutrophil_pca
+```
 
 ## Panel B
 
@@ -149,6 +225,22 @@ These move to the document 04differential_expression_tumaco.
 
 Section 7.0.4 "Figure 4B: Volcano plots"  For some reason I did not
 have separate sections for each cell type.
+
+```{r, eval=FALSE}
+num_color <- color_choices[["clinic_cf"]][["tumaco_failure"]]
+den_color <- color_choices[["clinic_cf"]][["tumaco_cure"]]
+wanted_genes <- c("FI44L", "IFI27", "PRR5", "PRR5-ARHGAP8", "RHCE",
+                  "FBXO39", "RSAD2", "SMTNL1", "USP18", "AFAP1")
+
+cf_monocyte_table <- t_cf_monocyte_table_sva[["data"]][["outcome"]]
+cf_monocyte_volcano <- plot_volcano_condition_de(
+  cf_monocyte_table, "outcome", label = wanted_genes,
+  fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
+  color_high = num_color, color_low = den_color, label_size = 6)
+pp(file = glue("images/cf_monocyte_volcano_labeled-v{ver}.svg"))
+cf_monocyte_volcano[["plot"]]
+dev.off()
+```
 
 ### Panel C
 
@@ -173,18 +265,55 @@ treeplot() result from gotermsim() of the gProfiler2 results.
 05enrichment, section 2.10.1 "gProfiler" (I am going to change these
 headings to be a bit more informative...)
 
+```{r, eval=FALSE}
+t_cf_eosinophil_sig_sva_up_gp <- simple_gprofiler(
+  t_cf_eosinophil_sig_sva_up,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_eosinophil_up_gp-v{ver}.xlsx"))
+t_cf_eosinophil_sig_sva_up_gp
+```
+
 ### Panel D
 
 05enrichment, Section 2.12.1 "gProfiler".
+
+```{r, eval=FALSE}
+t_cf_neutrophil_sig_sva_up_gp <- simple_gprofiler(
+  t_cf_neutrophil_sig_sva_up,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_up_gp-v{ver}.xlsx"))
+t_cf_neutrophil_sig_sva_up_gp
+```
 
 ### Panel F
 
 Ibid, Section 2.11.1 "gProfiler"
 
+```{r, eval=FALSE}
+t_cf_monocyte_sig_sva_up_gp <- simple_gprofiler(
+  t_cf_monocyte_sig_sva_up,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_monocyte_up_gp-v{ver}.xlsx"))
+t_cf_monocyte_sig_sva_up_gp
+```
+
 ### Panel H
 
 Ibid, Section 2.4.1 "gProfiler" but it is pretty far down; just before
 the clusterProfiler analyses.
+
+```{r, eval=FALSE}
+t_cf_clinicalnb_gp_down <- simple_gprofiler(
+  t_clinicalnb_cf_sig_sva_down,
+  excel = glue("{xlsx_prefix}/Gene_Set_Overrepresentation/clinicalnb_fail_up_gp-v{ver}.xlsx"))
+t_cf_clinicalnb_gp_down
+
+## and
+
+go_termsim <- enrichplot::pairwise_termsim(t_cf_clinicalnb_gp_down[["BP_enrich"]])
+t_cf_clinicalnb_gp_go_down_tree <- sm(enrichplot::treeplot(go_termsim))
+pp(file = "images/overrepresentation/t_cf_clinicalnb_gp_down_tree.pdf",
+   width = treeplot_width, height = treeplot_height)
+t_cf_clinicalnb_gp_go_down_tree
+dev.off()
+```
 
 ## Figure S1
 
@@ -200,19 +329,63 @@ vs outcome"  (I need to rename these sections too, these are cross
 correlations, not regression; I used to have them all together in a
 big pile and split them up, but didn't properly rename the headings.)
 
+```{r, eval=FALSE}
+t_regression_queries <- c("Weight", "Sex", "Ethnicity", "Age")
+t_cross_df <- t_regression_numeric[, t_regression_queries]
+t_regression_cross <- corr_cross(t_cross_df)
+pp(file = "figures/tumaco_weight_sex_ethnicity_age_numeric_crosscor.svg")
+t_regression_cross
+dev.off()
+```
+
 ### Panel B
 
 02visualization, 7.2.1 "Copy these with only the Tumaco people"
 
+```{r, eval=FALSE}
+regression_tests <- c("Age", "Clinic", "Ethnicity", "Sex", "Weight")
+lm_regression_demographics <- extract_linear_regression(
+  regression_numeric, query = "Therapeutic_Outcome_Final", factors = regression_tests,
+  excel = glue("excel/numeric_demographics_regression_final_sex_clinic_ethnicity_age-v{ver}.xlsx"))
+
+## and
+
+pp(file = "images/demographics_only_linear_regression.svg")
+lm_regression_demographics[["forest"]]
+dev.off()
+```
+
 ### Panel C
 
-Ibid, Section 7.2.2, look for the evaluation of:
-'tc_log_iterative_regression_demographics[["forest"]]'
+Ibid, Section 7.2.2
+
+```{r, eval=FALSE}
+tc_log_iterative_regression_demographics <- iterate_logistic_regression(
+  regression_df, query = "Therapeutic_Outcome_Final", factors = regression_tests,
+  excel = glue("excel/tc_simple_logistic_regression-v{ver}.xlsx"))
+
+## and
+
+pp(file = glue("figures/tc_simple_logistic_regression-v{ver}.svg"))
+tc_log_iterative_regression_demographics[["forest"]]
+dev.off()
+```
 
 ### Panel D
 
-Ibid.  Seek the evaluation of:
-'t_log_iterative_regression_demographics[["forest"]]'
+Ibid.
+
+```{r, eval=FALSE}
+t_log_regression_demographics <- extract_logistic_regression(
+  t_regression_df, query = "Therapeutic_Outcome_Final", factors = t_regression_tests,
+  excel = glue("excel/t_multivariable_logistic_regression-v{ver}.xlsx"))
+
+## and
+
+pp(file = glue("figures/t_multivariable_logistic_regression-v{ver}.svg"))
+t_log_regression_demographics[["forest"]]
+dev.off()
+```
 
 ### Panels E and F
 
@@ -227,6 +400,10 @@ use them but instead only include C/D.  Adding them back momentarily.
 
 These are waay down in Section 16 "Parasite distribution" of 02visualization.
 
+```{r, eval=FALSE}
+lp_cf_norm_pca <- plot_pca(lp_cf_norm)
+```
+
 ## Figure S4
 
 TODO: rename section
@@ -236,6 +413,10 @@ define the coverage cutoff for filtering samples and is found at
 section 7.2 "Figure S2: Non-zero genes before sample filtering"  (I
 guess I should rename this too)
 
+```{r, eval=FALSE}
+all_nz <- plot_nonzero(hs_expt)
+```
+
 ## Figure S5
 
 These are all scattered through 02visualization.
@@ -244,34 +425,71 @@ These are all scattered through 02visualization.
 
 Section 9.8 "Compare clinics"
 
+```{r, eval=FALSE}
+tc_clinic_type_pca <- plot_pca(tc_clinic_type_norm)
+tc_clinic_type_pca
+```
+
 ### Panel B
 
-Section 8.5 "Eosinophils by clinic"  No fails from Cali for
+Section 9.5 "Eosinophils by clinic"  No fails from Cali for
 Eosinophils!
+
+```{r, eval=FALSE}
+tc_eosinophils_pca <- plot_pca(tc_eosinophils_norm, plot_labels = FALSE)
+tc_eosinophils_pca
+```
 
 ### Panel C
 
 Section 9.6 "Monocytes by clinic"
 
+```{r, eval=FALSE}
+tc_monocytes_pca <- plot_pca(tc_monocytes_norm, plot_labels = FALSE)
+tc_monocytes_pca
+```
+
 ### Panel D
 
 Section 9.7 "Neutrophils by clinic"
+
+```{r, eval=FALSE}
+tc_neutrophils_pca <- plot_pca(tc_neutrophils_norm, plot_labels = FALSE)
+tc_neutrophils_pca
+```
 
 ### Panel E
 
 Section 9.1 "Biopsies by clinic"
 
+```{r, eval=FALSE}
+tc_biopsies_pca <- plot_pca(tc_biopsies_norm)
+tc_biopsies_pca
+```
+
 ### Panel F
 
 At the bottom of section 9.2.3 "Eosinophil samples, both clinics"
+
+```{r, eval=FALSE}
+plot_pca(etnia_eo_nb)
+```
 
 ### Panel G
 
 At the bottom of section 9.2.4 "Monocyte samples, both clinics"
 
+```{r, eval=FALSE}
+plot_pca(etnia_mo_nb)
+```
+
 ### Panel H
 
 At the bottom of section 9.2.5 "Neutrophil samples, both clinics"
+
+```{r, eval=FALSE}
+plot_pca(etnia_ne_nb)
+```
 
 ## Figure S6
 
@@ -284,6 +502,15 @@ These images are scattered through section 11.4.1 "Comparing 3 visits
 by cell type" (I changed the colors back just now 20240919, those
 greens are a horror show, where was April to yell at me!?)
 
+```{r, eval=FALSE}
+t_visit_monocyte_norm_pca <- plot_pca(t_visit_monocyte_norm, plot_labels = FALSE)
+pp(file = "images/t_monocyte_visit_norm_pca.pdf")
+t_visit_monocyte_norm_pca$plot
+dev.off()
+
+## replace monocyte with the relevant celltypes for the others.
+```
+
 ### Panel D
 
 These bottom panels are comparing my simplified model to a more
@@ -294,9 +521,29 @@ Note, hpgltools is now able to handle arbitrarily complex models
 across all methods (deseq/edger/etc...) though I didn't finish it
 until a few days ago and it has not yet been fully tested.
 
+```{r, eval=FALSE}
+## The original pairwise invocation with sva:
+##t_cf_monocyte_de_sva <- all_pairwise(t_monocyte, model_batch = "svaseq",
+##                                     filter = TRUE, parallel = FALSE,
+##                                     methods = methods)
+test_monocytes <- normalize_expt(t_monocytes, filter = "simple")
+```
+
+This continues for a few blocks of relatively dense code invoking sva
+with a model containing visit number.
+
 ### Panel E
 
 Ibid, section 7.0.3
+
+This section is nearly identically dense, and starts with the following:
+
+```{r, eval=FALSE}
+## The original pairwise invocation with sva:
+#t_cf_eosinophil_de_sva <- all_pairwise(t_eosinophils, model_batch = "svaseq",
+#                                       filter = TRUE, parallel=FALSE, methods = methods)
+test_eosinophils <- normalize_expt(t_eosinophils, filter = "simple")
+```
 
 ### Panel F
 
@@ -304,6 +551,14 @@ Ibid, section 7.0.2
 
 TODO: This portion of the 04differential_expression_tumaco is poorly
 organized.
+
+```{r, eval=FALSE}
+## The original pairwise invocation with sva:
+## t_cf_neutrophil_de_sva <- all_pairwise(t_neutrophils, model_batch = "svaseq",
+##                                        parallel = parallel, filter = TRUE,
+##                                        methods = methods)
+test_neutrophils <- normalize_expt(t_neutrophils, filter = "simple")
+```
 
 ## Figure S7
 
@@ -313,9 +568,26 @@ This images harken back to 02visualization
 
 Section 10.2.1 of 02visualization
 
+```{r, eval=FALSE}
+t_clinical_nobiop_pca <- plot_pca(t_clinical_nobiop_norm, plot_labels = FALSE)
+pp(file = "figures/t_clinical_nobiop_figxxa.pdf")
+t_clinical_nobiop_pca[["plot"]]
+dev.off()
+```
+
 ### Panel B
 
 The next image in 10.2
+
+TODO: Check that the device is properly creating pdfs in this section;
+it looks like it might be creating pngs for some of these?
+
+```{r, eval=FALSE}
+t_clinical_nobiop_nb_pca <- plot_pca(t_clinical_nobiop_nb, plot_labels = FALSE)
+pp(file = "figures/t_clinical_nobiop_sva_figxxb.pdf")
+t_clinical_nobiop_nb_pca[["plot"]]
+dev.off()
+```
 
 ## Figure S8, S9, S10
 
@@ -327,9 +599,22 @@ These are not in my notebooks.
 
 Section 10.2.1
 
+```{r, eval=FALSE}
+tc_clinical_nobiop_pca <- plot_pca(tc_clinical_nobiop_norm, plot_labels = FALSE)
+pp(file = "figures/tc_clinical_nobiop_figxxc.pdf")
+tc_clinical_nobiop_pca[["plot"]]
+```
+
 ### Panel B
 
 and the immediately following image
+
+```{r, eval=FALSE}
+tc_clinical_nobiop_nb_pca <- plot_pca(tc_clinical_nobiop_nb, plot_labels = FALSE)
+pp(file = "figures/tc_clinical_nobiop_sva_figxxd.pdf")
+tc_clinical_nobiop_nb_pca[["plot"]]
+dev.off()
+```
 
 ### Panel C
 
@@ -337,6 +622,12 @@ I think this is the only image taken from
 03differential_expression_both; it comes from section 5.2.1; in my
 last iteration of the notebook it failed because I forgot to tell it
 to use the color_choices (fixed)
+
+```{r, eval=FALSE}
+tc_clinical_cf_de_batch <- all_pairwise(tc_clinical_nobiop, filter = TRUE,
+                                        parallel = parallel, model_batch = TRUE,
+                                        methods = methods)
+```
 
 ## Table S1
 
@@ -358,6 +649,11 @@ This is a slightly modified copy of the result of the 'svpc_fstats()'
 invocations found at the end of Section 17 in 02visualization.  (my
 little function adds a funky heatmap to the output)
 
+```{r, eval=FALSE}
+queries <- c("typeofcells", "visitnumber", "clinic", "donor")
+tc_clinical_fpstats <- svpc_fstats(tc_clinical, num_pcs = 5, queries = queries)
+```
+
 ## Table S4
 
 This is a slightly modified copy of two results:
@@ -374,6 +670,13 @@ worksheet comprises columns Q-V from it.  (also yay! the numbers are
 the same between my container (which changes constantly and gets
 rebuilt with each change) and the copy that was used for the paper!)
 
+```{r, eval=FALSE}
+t_cf_biopsy_table_sva <- combine_de_tables(
+  t_cf_biopsy_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Biopsies/t_biopsy_cf_table_sva-v{ver}.xlsx"))
+t_cf_biopsy_table_sva
+```
+
 ### Bipsies GO
 
 Looking more carefully at this, I think this is not from my
@@ -384,6 +687,20 @@ The invocation for my version of this resides in 05enrichment, section
 'analyses/Gene_Set_Enrichment/t_cf_biopsy_sig_sva_up_gp-v202409.xlsx'
 for gProfiler, and with a similar name containing 'cp' for
 clusterProfiler.
+
+```{r, eval=FALSE}
+t_cf_biopsy_sig_sva_gp_up <- simple_gprofiler(
+  t_cf_biopsy_sig_sva_up,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_biopsy_sig_sva_up_gp-v{ver}.xlsx"))
+t_cf_biopsy_sig_sva_gp_up
+
+## or perhaps if you prefer clusterProfiler
+
+t_cf_biopsy_sig_sva_cp_up <- simple_cprofiler(
+  t_cf_biopsy_sig_sva_up, de_table = t_cf_biopsy_table_sva,
+  orgdb = "org.Hs.eg.db",
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_biopsy_sig_sva_up_cp-v{ver}.xlsx"))
+```
 
 ## Table S5
 
@@ -400,6 +717,13 @@ container-derived worksheet vs this table.  I think that is an
 acceptable difference?  I did spot check a few genes in the top 5000
 and it looks like the order is maintained.
 
+```{r, eval=FALSE}
+t_cf_monocyte_table_sva <- combine_de_tables(
+  t_cf_monocyte_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Monocytes/t_monocyte_cf_table_sva-v{ver}.xlsx"))
+t_cf_monocyte_table_sva
+```
+
 ### worksheet Neutrophils
 
 Same logic, but Section 7.0.2 with the analagously named xlsx file in
@@ -408,10 +732,24 @@ shifted slightly (but this time by ~ 0.001 up to 0.1 logFC) and I do
 see a couple of genes out of order...  I am going to check in with
 Maria Adelaida.
 
+```{r, eval=FALSE}
+t_cf_neutrophil_table_sva <- combine_de_tables(
+  t_cf_neutrophil_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_table_sva-v{ver}.xlsx"))
+t_cf_neutrophil_table_sva
+```
+
 ### worksheet Eosinophils
 
 Ibid, section 7.0.3.  Once again the values look to have shifted down
 by ~ 0.001 to 0.01 logFC.
+
+```{r, eval=FALSE}
+t_cf_eosinophil_table_sva <- combine_de_tables(
+  t_cf_eosinophil_de_sva, keepers = t_cf_contrast,
+  excel = glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_table_sva-v{ver}.xlsx"))
+t_cf_eosinophil_table_sva
+```
 
 ### worksheet All_innate
 
@@ -423,6 +761,13 @@ to produce the xlsx file
 These numbers match up pretty much exactly (I set the number of
 significant digits to 4 I think, but this worksheet is 3?)
 
+```{r, eval=FALSE}
+t_cf_clinical_table_sva <- combine_de_tables(
+  t_cf_clinical_de_sva, keepers = cf_contrast,
+  excel = glue("{cf_prefix}/All_Samples/t_clinical_cf_table_sva-v{ver}.xlsx"))
+t_cf_clinical_table_sva
+```
+
 ## Table S6
 
 I do not think they used my gProfiler/clusterProfiler results for
@@ -430,10 +775,7 @@ this.
 
 ## Table S7
 
-This comes from 06lrt_gsva, section 3; seek out the invocation of:
-
-'t_clinical_gsva_h <- simple_gsva(
-    t_clinical, signature_category = "h")'
+This comes from 06lrt_gsva, section 3.
 
 with the caveat that I think the C2 and C7 results are more
 interesting.  Also, the results produced by the container are sparser
@@ -445,11 +787,30 @@ mSigDB changed the xml format so that it no longer parses properly in
 R; so those functions are now smrt enough to handle the new gmt/json
 files).
 
+```{r, eval=FALSE}
+tc_celltype_gsva_h <- simple_gsva(
+    tc_valid,
+    signatures = broad_h,
+    msig_xml = "reference/msigdb/msigdb_v7.5.1.xml",
+    signature_category = "h")
+tc_celltype_gsva_h_sig <- get_sig_gsva_categories(
+    tc_celltype_gsva_h,
+    excel = "analyses/3_cali_and_tumaco/GSVA/tc_valid_gsva_h.xlsx")
+```
+
 ## Table S8
 
 I am reasonably certain that Alejandro produced the inputs for this;
 however the container produces nearly identical versions of the pieces
 in 07wgcna, section 9.
+
+```{r, eval=FALSE}
+written_interesting <- write_xlsx(fData(l2input)[interesting_genes, ],
+                                  excel = glue("excel/wgcna_interesting_genes-v{ver}.xlsx"))
+
+## Note that we can do similarity matrices on the samples too in order to get
+## dendrograms which may get interesting groups of samples?
+```
 
 ## Table S9
 
@@ -458,6 +819,27 @@ most computers out of memory and/or take a really long time.  If your
 computer has ~ 512G ram, open 08classifier_highvar.Rmd and run section
 11.2; the resulting xlsx output files should look like this (except
 cooler because I add some plots).
+
+```{r, eval=FALSE}
+tc_vall_summary_xlsx <- glue("excel/tc_vall_ml_summary-v{ver}.xlsx")
+tc_vall_knn <- classify_n_times(tc_vall_texprs, tc_vall_meta,
+                                outcome_column = ref_col,
+                                method = "knn", sampler = "cv")
+written <- write_classifier_summary(tc_vall_knn, excel = tc_vall_summary_xlsx)
+tc_vall_gb <- classify_n_times(tc_vall_texprs, tc_vall_meta,
+                               outcome_column = ref_col,
+                               method = "xgbTree", sampler = "cv")
+written <- write_classifier_summary(tc_vall_gb, excel = written[["wb"]])
+tc_vall_glm <- classify_n_times(tc_vall_texprs, tc_vall_meta,
+                                outcome_column = ref_col,
+                                method = "glmnet", sampler = "cv")
+written <- write_classifier_summary(tc_vall_glm, excel = written[["wb"]])
+tc_vall_rf <- classify_n_times(tc_vall_texprs, tc_vall_meta,
+                               outcome_column = ref_col,
+                               method = "ranger", sampler = "cv")
+written <- write_classifier_summary(tc_vall_rf, excel = written[["wb"]])
+openxlsx::saveWorkbook(written[["wb"]], file = tc_vall_summary_xlsx)
+```
 
 # Structure
 
