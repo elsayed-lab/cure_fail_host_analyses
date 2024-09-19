@@ -18,7 +18,6 @@ function usage() {
     echo "-o: Output directory to write data/outputs."
     echo "-c: Clean up the output directory."
     echo "-a: Copy the hpgltools repository to the current working directory."
-    echo "-b: Copy the EuPathDB repository to the current working directory."
     echo "-d: Dump the _entire_ data directory from the container to your working directory."
 }
 
@@ -30,16 +29,8 @@ function cleanup() {
 }
 
 
-function copy_eupath() {
-    echo "Copying the EuPathDB repository and build trees to the current working directory."
-    mkdir -p eupath/build eupath/EuPathDB
-    rsync -av /data/EuPathDB/ eupath/EuPathDB/
-    rsync -av /data/build/ eupath/build/
-}
-
-
 function copy_hpgltools() {
-    echo "Copying the EuPathDB repository and build trees to the current working directory."
+    echo "Copying the hpgltools repository to the current working directory."
     mkdir -p hpgltools
     rsync -av /data/hpgltools/ hpgltools/
 }
@@ -51,6 +42,8 @@ function dump() {
     echo "You have 5 seconds to hit control-C before it starts."
     sleep 5
     rsync -av /data/ --exclude='R' --exclude='renv' --exclude='build' --exclude='hpgltools' --exclude='hpgldata' .
+    ## I am not sure why, but the stupid R symlink is still getting rsync'd
+    rm -f R
 }
 
 
@@ -97,8 +90,6 @@ while getopts "abdch:i:" opt; do
         'c') cleanup
            exit 0;;
         'h') usage
-             exit 0;;
-        'b') copy_eupath
              exit 0;;
         'a') copy_hpgltools
                 exit 0;;

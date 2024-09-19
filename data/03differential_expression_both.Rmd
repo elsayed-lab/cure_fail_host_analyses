@@ -636,22 +636,48 @@ table(pData(tc_clinical_nobiop)[["condition"]])
 tc_clinical_cf_de_sva <- all_pairwise(tc_clinical_nobiop, filter = TRUE,
                                       parallel = parallel, model_batch = "svaseq",
                                       methods = methods)
+tc_clinical_cf_de_sva
+
 tc_clinical_cf_table_sva <- combine_de_tables(
   tc_clinical_cf_de_sva, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_table_sva-v{ver}.xlsx"))
+tc_clinical_cf_table_sva
+
 tc_clinical_cf_sig_sva <- extract_significant_genes(
   tc_clinical_cf_table_sva, according_to = "deseq",
   excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_sig_sva-v{ver}.xlsx"))
+tc_clinical_cf_sig_sva
 
 tc_clinical_cf_de_batch <- all_pairwise(tc_clinical_nobiop, filter = TRUE,
                                         parallel = parallel, model_batch = TRUE,
                                         methods = methods)
+tc_clinical_cf_de_batch
+
 tc_clinical_cf_table_batch <- combine_de_tables(
   tc_clinical_cf_de_batch, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_table_batch-v{ver}.xlsx"))
+tc_clinical_cf_table_batch
+
 tc_clinical_cf_sig_batch <- extract_significant_genes(
   tc_clinical_cf_table_batch, according_to = "deseq",
   excel = glue("{cf_prefix}/Clinical_Samples/tc_clinical_cf_sig_batch-v{ver}.xlsx"))
+tc_clinical_cf_sig_batch
+```
+
+### A portion of Supplemental Figure 11.
+
+```{r}
+num_color <- color_choices[["cf"]][["cure"]]
+den_color <- color_choices[["cf"]][["failure"]]
+tc_clinical_cf_table <- tc_clinical_cf_table_sva[["data"]][["outcome"]]
+tc_clinical_cf_volcano_top10 <- plot_volcano_condition_de(
+  tc_clinical_cf_table, "outcome", label = 10,
+  fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
+  color_high = num_color, color_low = den_color, label_size = 6)
+pp(file = glue("figures/s11c_tc_clinical_cf_volcano_labeled_top10-v{ver}.svg"))
+tc_clinical_cf_volcano_top10[["plot"]]
+dev.off()
+tc_clinical_cf_volcano_top10[["plot"]]
 ```
 
 ## Biopsies, with(out) SVA

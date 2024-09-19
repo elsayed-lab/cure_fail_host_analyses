@@ -11,10 +11,7 @@ source /usr/local/etc/bashrc
 
 cd /data || exit
 
-##mkdir -p "${R_LIBS_USER}"
-
 start=$(pwd)
-#commit="b26529d25251c3d915b718460ef34194dbf8e418"
 log=/setup_hpgltools.stdout
 err=/setup_hpgltools.stderr
 prefix="/sw/local/conda/${CONTAINER_VERSION}"
@@ -56,18 +53,11 @@ eval "$(/bin/micromamba shell hook --shell bash)"
            -c conda-forge 2>>/data/mamba.stderr 1>/dev/null
 export PATH="/sw/local/conda/${CONTAINER_VERSION}/envs/hpgltools/bin:/sw/local/conda/${CONTAINER_VERSION}/condabin:${PATH}"
 
-##echo "Setting up the Rprofile and renv tree."
 ## Setup renv and initialize my package versions.
-##echo "options(Ncpus=${CPUS})" > "${HOME}/.Rprofile"
-##echo "options(timeout=600)" >> "${HOME}/.Rprofile"
-##echo "options(repos='https://cloud.r-project.org')" >> "${HOME}/.Rprofile"
 git clone https://github.com/abelew/hpgldata.git
 git clone https://github.com/abelew/hpgltools.git
 export HPGL_VERSION=$(cd hpgltools && git log -1 --date=iso | grep ^Date | awk '{print $2}' | sed 's/\-//g')
 echo "export HPGL_VERSION=${HPGL_VERSION}" >> /versions.txt
-git clone https://github.com/abelew/EuPathDB.git 2>/dev/null 1>&2
-export EUPATHDB_VERSION=$(cd EuPathDB && git log -1 --date=iso | grep ^Date | awk '{print $2}' | sed 's/\-//g')
-echo "export EUPATHDB_VERSION=${EUPATHDB_VERSION}" >> /versions.txt
 
 echo "The last commit included:" | tee -a ${log}
 last=$(cd hpgltools && git log -1)
@@ -88,10 +78,5 @@ fi
 ## or it will die horribly).
 echo "Running the bootstrap R installation script."
 
-{ /usr/local/bin/bootstrap_renv.R || echo "Failed to finish bootstrap_renv.R"; }
-## The following will cease to work when the eupathdb web servers are shut down.
-## Therefore I bundled a pre-generated orgdb/bsgenome/txdb/grange for species of interest.
-## I am also making packages for every eupathdb species (as of 20240912) which can be
-## cross referenced to the GenomeInfoDB.
-##{ /usr/local/bin/bootstrap_norenv.R || echo "Failed to finish bootstrap_norenv.R"; }
+{ /usr/local/bin/bootstrap.R || echo "Failed to finish bootstrap.R"; }
 { cd /usr/local && R CMD INSTALL "org.Lpanamensis.MHOMCOL81L13.v68.eg.db_2024.09.tar.gz" || echo "Failed to install the orgdb package(s)."; }

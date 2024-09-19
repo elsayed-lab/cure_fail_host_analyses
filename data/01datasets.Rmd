@@ -42,7 +42,6 @@ library(hpgltools)
 library(dplyr)
 library(forcats)
 library(glue)
-library(EuPathDB)
 library(tidyr)
 
 knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)
@@ -59,7 +58,7 @@ rmd_file <- "01datasets.Rmd"
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
 methods <- list("basic" = TRUE, "deseq" = TRUE, "dream" = FALSE,
                 "ebseq" = FALSE, "edger" = TRUE, "limma" = TRUE, "noiseq" = TRUE)
-data_structures <- c(methods)
+data_structures <- c("methods")
 ```
 
 # TODO
@@ -218,7 +217,7 @@ all_lp_annot <- sm(load_orgdb_annotations(
   keytype = "gid",
   fields = c("annot_gene_entrez_id", "annot_gene_name",
              "annot_strand", "annot_chromosome", "annot_cds_length",
-             "annot_gene_location_text", "annot_gene_product")))$genes
+             "annot_gene_location_text", "annot_gene_product")))[["genes"]]
 ```
 
 The following was added to support the possibility of making a single
@@ -253,8 +252,9 @@ all_lp_annot[["transcript"]] <- all_lp_annot[["gid"]]
 all_lp_annot[["ensembl_transcript_id"]] <- all_lp_annot[["gid"]]
 
 colnames(hs_tx_annot)
+colnames(all_lp_annot)
 wanted_columns <- c("gid", "ensembl_transcript_id", "version", "transcript_version", "annot_gene_product",
-                    "annot_gene_type", "annot_cds_length", "annot_chromosome", "annot_strand", "start",
+                    "gene_type", "annot_cds_length", "annot_chromosome", "annot_strand", "start",
                     "end", "hgnc_symbol", "uniprot_gn_symbol", "transcript", "mean_cds_len")
 all_lp_annot <- all_lp_annot[, wanted_columns]
 colnames(all_lp_annot) <- colnames(hs_tx_annot)
@@ -281,7 +281,9 @@ lp_lengths <- all_lp_annot[, c("ensembl_gene_id", "mean_cds_len")]
 colnames(lp_lengths)  <- c("gid", "length")
 all_lp_annot[["description"]] <- tolower(all_lp_annot[["description"]])
 
-orthos <- extract_eupath_orthologs(db = panamensis_pkg)
+## extract_eupath_orthologs is from EuPathDB and isn't really
+## being used for anything in this document afaik.
+##orthos <- extract_eupath_orthologs(db = panamensis_pkg)
 data_structures <- c(data_structures, "lp_lengths", "lp_go", "all_lp_annot", "meta")
 ```
 
@@ -2464,12 +2466,18 @@ the Biopsy samples, is to compare with another set of recent
 L. braziliensis infected biopsy samples.  The following sets up an
 expressionset using the raw data from bioproject PRJNA525604.
 
+Note 202409: I just added the scott tsv metadata to this container and
+thus to this data structure; this only works because the samples are
+nicely in the same order.
+
 ```{r}
 new_sample_sheet <- sm(
   suppressWarnings(gather_preprocessing_metadata(
     "sample_sheets/scott_sra_samples.xlsx", specification = make_rnaseq_spec())))
+scott_metadata <- as.data.frame(readr::read_tsv("sample_sheets/scott_capsule_studydesign.tsv"))
+new_meta <- cbind.data.frame(new_sample_sheet[["new_meta"]], scott_metadata)
 
-external_cf <- create_expt("sample_sheets/scott_sra_samples_modified.xlsx",
+external_cf <- create_expt(new_meta,
                            gene_info = hs_annot, file_column = "hisatcounttable") %>%
   set_expt_conditions(fact = "treatmentoutcome") %>%
     set_expt_batches(fact = "sex") %>%

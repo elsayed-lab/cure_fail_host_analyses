@@ -535,8 +535,6 @@ t_sex_down_gp <- simple_gprofiler(
   t_sex_down_sig,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/sex_female_up_gp-v{ver}.xlsx"))
 t_sex_down_gp
-
-enrichplot::dotplot(t_sex_down_gp[["BP_enrich"]])
 ```
 
 Given the results from gProfiler, I do not have high expectations for

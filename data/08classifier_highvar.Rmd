@@ -665,7 +665,7 @@ it isn't theoretically very useful for this series of methological
 tests.  As a result, the following block is also not particularly
 helpful -- though I suspect the results are identical to what follows.
 
-```{r, eval=FALSE}
+```{r}
 glm_variable_importance <- varImp(glm_train_fit)
 ## Oh, this only produces 100 entries -- so me getting the top 400 is silly.
 glm_variables <- glm_variable_importance[["importance"]] %>%
@@ -686,11 +686,6 @@ Vennerable::plot(comparison_venn, doWeights = FALSE, type = "circles")
 
 comparison <- list("de" = highest_exprs, "ml" = top_glm)
 comparison_venn <- Vennerable::Venn(comparison)
-Vennerable::plot(comparison_venn, doWeights = FALSE, type = "circles")
-
-comparison <- list("wgcna" = rownames(wgcna_result), "ml" = top_glm)
-comparison_venn <- Vennerable::Venn(comparison)
-comparison_wgcna[["glm"]] <- fData(c_monocytes)[comparison_venn@IntersectionSets["11"][[1]], ]
 Vennerable::plot(comparison_venn, doWeights = FALSE, type = "circles")
 ```
 

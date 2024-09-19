@@ -40,7 +40,7 @@ pre {
 ```{r, include=FALSE}
 library(broom) ## Provides tidy methods for lm/glm/etc
 library(dplyr)
-library(EuPathDB)
+##library(EuPathDB)
 library(forcats)
 library(ggplot2)
 library(ggstatsplot)

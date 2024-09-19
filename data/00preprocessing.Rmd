@@ -33,7 +33,7 @@ library(hpgltools)
 library(dplyr)
 library(forcats)
 library(glue)
-library(EuPathDB)
+##library(EuPathDB)
 
 tt <- try(devtools::load_all("~/hpgltools"))
 knitr::opts_knit$set(

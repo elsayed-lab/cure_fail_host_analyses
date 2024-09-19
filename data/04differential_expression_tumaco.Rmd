@@ -436,7 +436,7 @@ will therefore look at cure/fail from Tumaco at visit 1.
 ```{r}
 t_cf_clinical_v1_de_sva <- all_pairwise(tv1_samples, model_batch = "svaseq",
                                         parallel = parallel, filter = TRUE,
-                                        parallel = FALSE, methods = methods)
+                                        methods = methods)
 t_cf_clinical_v1_de_sva
 t_cf_clinical_v1_table_sva <- combine_de_tables(
   t_cf_clinical_v1_de_sva, keepers = cf_contrast,
@@ -876,7 +876,11 @@ t_cf_neutrophil_visits_sig_sva
 
 dim(t_cf_neutrophil_visits_sig_sva$deseq$ups[[1]])
 dim(t_cf_neutrophil_visits_sig_sva$deseq$downs[[1]])
+```
 
+Now V1
+
+```{r}
 t_cf_neutrophil_v1_de_sva <- all_pairwise(tv1_neutrophils, model_batch = "svaseq",
                                           parallel = parallel, filter = TRUE,
                                           methods = methods)
@@ -1112,7 +1116,6 @@ old_annotated <- merge(fData(t_eosinophils), big_table, by = "row.names")
 rownames(old_annotated) <- old_annotated[["Row.names"]]
 old_annotated[["Row.names"]] <- NULL
 write_xlsx(data = old_annotated, excel = "excel/eosinophil_visit_in_model_sva_cf_old.xlsx")
-
 ```
 
 #### C/F celltype volcano plots with specific labels
@@ -1141,6 +1144,15 @@ cf_monocyte_volcano[["plot"]]
 dev.off()
 cf_monocyte_volcano[["plot"]]
 
+cf_monocyte_volcano_top10 <- plot_volcano_condition_de(
+  cf_monocyte_table, "outcome", label = 10,
+  fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
+  color_high = num_color, color_low = den_color, label_size = 6)
+pp(file = glue("images/cf_monocyte_volcano_labeled_top10-v{ver}.svg"))
+cf_monocyte_volcano_top10[["plot"]]
+dev.off()
+cf_monocyte_volcano_top10[["plot"]]
+
 cf_eosinophil_table <- t_cf_eosinophil_table_sva[["data"]][["outcome"]]
 cf_eosinophil_volcano <- plot_volcano_condition_de(
   cf_eosinophil_table, "outcome", label = wanted_genes,
@@ -1151,6 +1163,15 @@ cf_eosinophil_volcano[["plot"]]
 dev.off()
 cf_eosinophil_volcano[["plot"]]
 
+cf_eosinophil_volcano_top10 <- plot_volcano_condition_de(
+  cf_eosinophil_table, "outcome", label = 10,
+  fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
+  color_high = num_color, color_low = den_color, label_size = 6)
+pp(file = glue("images/cf_eosinophil_volcano_labeled_top10-v{ver}.svg"))
+cf_eosinophil_volcano_top10[["plot"]]
+dev.off()
+cf_eosinophil_volcano_top10[["plot"]]
+
 cf_neutrophil_table <- t_cf_neutrophil_table_sva[["data"]][["outcome"]]
 cf_neutrophil_volcano <- plot_volcano_condition_de(
   cf_neutrophil_table, "outcome", label = wanted_genes,
@@ -1160,6 +1181,15 @@ pp(file = glue("images/cf_neutrophil_volcano_labeled-v{ver}.svg"))
 cf_neutrophil_volcano[["plot"]]
 dev.off()
 cf_neutrophil_volcano[["plot"]]
+
+cf_neutrophil_volcano_top10 <- plot_volcano_condition_de(
+  cf_neutrophil_table, "outcome", label = 10,
+  fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
+  color_high = num_color, color_low = den_color, label_size = 6)
+pp(file = glue("images/cf_neutrophil_volcano_labeled_top10-v{ver}.svg"))
+cf_neutrophil_volcano_top10[["plot"]]
+dev.off()
+cf_neutrophil_volcano_top10[["plot"]]
 ```
 
 ### Eosinophil time comparisons
@@ -1945,9 +1975,19 @@ Either way, I think the main takeaway is that their dataset does not
 spend much time looking at cure/fail but instead control/infected for
 a reason.
 
+Note, the fun aspects of the experiment (time to cure, size of lesion,
+etc) are not annotated in the metadata provided by SRA, but instead
+may be found in the capsule kindly provided by the lab.  As a result,
+I copied that file into the sample_sheets/ directory and have added it
+to the expressionset.  There is an important caveat, though: I did not
+include the non-diseased samples for this comparison; as a result the
+disease metadata factor is boring (e.g. it is only cutaneous).
+
 ```{r}
-external_cf[["accession"]] <- rownames(pData(external_cf))
-external_disease <- set_expt_conditions(external_cf, factor = "disease")
+external_cf[["accession"]] <- pData(external_cf)[["sample"]]
+disease_factor <- pData(external_cf)[["disease"]]
+table(disease_factor)
+external_disease <- set_expt_conditions(external_cf, fact = disease_factor)
 
 external_l2cpm <- normalize_expt(external_cf, filter = TRUE,
                                 convert = "cpm", transform = "log2")

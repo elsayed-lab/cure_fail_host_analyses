@@ -250,7 +250,6 @@ rsync -av /sw/singularity/cure_fail_host_analyses/data/renv* .
 options(renv.config.install.transactional = FALSE)
 source("renv/activate.R")
 renv::restore()
-renv::install("abelew/EuPathDB")
 renv::install("abelew/hpgltools")
 ```
 
@@ -314,3 +313,13 @@ wtf?  Ooohh perhaps the debian installed R is setting Wall in
 /etc/R/Makeconf or whatever that file is...  Bingo, ok, turned off
 Wformat in it.  Let us see if that helps the restore() (which, btw
 still stop()s on error!
+
+# Final notes
+
+This image has been associated with a zenodo DOI.  However, I fully intend to keep playing with it
+and adding some things which I think will be fun and interesting, notably:
+
+* For the samples with decent(high) coverage, pass the data to rMats/Miso/Suppa and see if I can
+  learn anything fun about splicing.
+* Take some time and look more carefully at mSigDB
+* Compare the data more carefully against the various transcription factor databases.

@@ -35,8 +35,6 @@ local/etc/bashrc /usr/local/etc/bashrc
 local/etc/deb_packages.txt /usr/local/etc/deb_packages.txt
 local/etc/conda_packages.txt /usr/local/etc/conda_packages.txt
 local/bin/bootstrap.R /usr/local/bin/bootstrap.R
-local/bin/bootstrap_renv.R /usr/local/bin/bootstrap_renv.R
-local/bin/bootstrap_norenv.R /usr/local/bin/bootstrap_norenv.R
 local/bin/bootstrap.sh /usr/local/bin/bootstrap.sh
 local/bin/runscript.sh /usr/local/bin/runscript.sh
 data/Makefile /data/Makefile
@@ -49,6 +47,7 @@ data/preprocessing/pruned_counts_host.tar /data/preprocessing/pruned_counts_host
 data/preprocessing/pruned_counts_parasite.tar /data/preprocessing/pruned_counts_parasite.tar
 data/preprocessing/scott_counts.tar /data/preprocessing/scott_counts.tar
 data/sample_sheets/scott_sra_samples.xlsx /data/sample_sheets/scott_sra_samples.xlsx
+data/sample_sheets/scott_capsule_studydesign.tsv /data/sample/sheets/scott_capsule_studydesign.tsv
 data/sample_sheets/tmrc3_demographics.xlsx /data/sample_sheets/tmrc3_demographics.xlsx
 data/sample_sheets/tmrc3_demographicsv2.xlsx /data/sample_sheets/tmrc3_demographicsv2.xlsx
 data/sample_sheets/tmrc3_samples_pruned.xlsx /data/sample_sheets/tmrc3_samples_pruned.xlsx
@@ -76,9 +75,10 @@ Maintainer Ashton Trey Belew <abelew@umd.edu>
 
 
 %post
-echo "export CONTAINER_VERSION=202408" > /versions.txt
-echo "export BIOC_VERSION=3.19" >> /versions.txt
-echo "export R_VERSION=4.4.1" >> /versions.txt
+echo "export CONTAINER_VERSION='202408'" > /versions.txt
+echo "export BIOC_VERSION='3.19'" >> /versions.txt
+echo "export R_VERSION='4.4.1'" >> /versions.txt
+echo "export HPGLTOOLS_COMMIT='2ba131c696f93b44a2360e412fbba5b008699c83'" >> /versions.txt
 /usr/local/bin/bootstrap.sh
 
 
