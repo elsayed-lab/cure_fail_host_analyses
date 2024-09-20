@@ -37,6 +37,7 @@ local/etc/conda_packages.txt /usr/local/etc/conda_packages.txt
 local/bin/bootstrap.R /usr/local/bin/bootstrap.R
 local/bin/bootstrap.sh /usr/local/bin/bootstrap.sh
 local/bin/runscript.sh /usr/local/bin/runscript.sh
+data/ml_summary_tumaco_v1-v202408.xlsx /data/ml_summary_tumaco_v1-v202408.xlsx
 data/Makefile /data/Makefile
 data/renv.lock /data/renv.lock
 data/renv/activate.R /data/renv/activate.R
@@ -54,6 +55,7 @@ data/sample_sheets/tmrc3_samples_pruned.xlsx /data/sample_sheets/tmrc3_samples_p
 data/sample_sheets/identified_parasite_species.xlsx /data/sample_sheets/identified_parasite_species.xlsx
 data/sample_sheets/tmrc3_samples.xlsx /data/sample_sheets/tmrc3_samples.xlsx
 data/Makefile /data/Makefile
+data/README.Rmd /data/README.Rmd
 data/00preprocessing.Rmd /data/00preprocessing.Rmd
 data/01datasets.Rmd /data/01datasets.Rmd
 data/02visualization.Rmd /data/02visualization.Rmd
@@ -83,7 +85,7 @@ echo "export HPGLTOOLS_COMMIT='2ba131c696f93b44a2360e412fbba5b008699c83'" >> /ve
 
 
 %runscript
-/usr/bin/time /usr/local/bin/runscript.sh $*
+/usr/bin/time -f '\t%E real,\t%U user,\t%S sys,\t%K amem,\t%M mmem' /usr/local/bin/runscript.sh $*
 
 
 ## The setup block will be used to prepare material which I cannot acquire

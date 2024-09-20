@@ -5,7 +5,7 @@ set -o pipefail
 start=$(pwd)
 source /usr/local/etc/bashrc
 export VERSION=$(date +%Y%m)
-pwd
+
 
 function usage() {
     echo "This script by default will render every file in the list:"
@@ -41,9 +41,7 @@ function dump() {
     echo "This includes all the R packages, any built genomes, all the raw data, _everything_."
     echo "You have 5 seconds to hit control-C before it starts."
     sleep 5
-    rsync -av /data/ --exclude='R' --exclude='renv' --exclude='build' --exclude='hpgltools' --exclude='hpgldata' .
-    ## I am not sure why, but the stupid R symlink is still getting rsync'd
-    rm -f R
+    rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
 }
 
 
@@ -113,7 +111,9 @@ cd "${OUTPUT_DIR}" || exit
 ## DEFAULT_INPUT is provided in the yml file.
 inputs="${DEFAULT_INPUT}"
 echo "No colon-separated input file(s) given, analyzing the archived data."
-rsync -a /data/ --exclude='renv' --exclude='build' --exclude='hpgltools' --exclude='hpgldata' .
+echo "About to rsync the data tree with: "
+echo "  rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' ."
+rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
 for i in $(/bin/ls /data/preprocessing/*.tar); do
     untarred=$(cd preprocessing && tar xaf "${i}")
 done

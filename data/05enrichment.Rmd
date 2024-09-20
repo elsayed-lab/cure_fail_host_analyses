@@ -858,7 +858,7 @@ enrichplot::dotplot(t_cf_eosinophil_sig_sva_up_gp[["TF_enrich"]])
 
 go_termsim <- enrichplot::pairwise_termsim(t_cf_eosinophil_sig_sva_up_gp[["BP_enrich"]])
 go_treeplot <- sm(treeplot(go_termsim, label_format = wrap_width))
-pp(file = glue("images/overrepresentation/t_cf_eosinophil_up_gp_go-v{ver}.pdf"),
+pp(file = "figures/t_cf_eosinophil_up_gp_go.svg",
    height = treeplot_height, width = treeplot_width)
 go_treeplot
 dev.off()
@@ -983,7 +983,7 @@ enrichplot::dotplot(t_cf_monocyte_sig_sva_up_gp[["TF_enrich"]])
 
 go_termsim <- enrichplot::pairwise_termsim(t_cf_monocyte_sig_sva_up_gp[["BP_enrich"]])
 go_treeplot <- sm(treeplot(go_termsim, label_format = wrap_width))
-pp(file = glue("images/overrepresentation/t_cf_monocyte_up_gp_go-v{ver}.pdf"),
+pp(file = "figures/overrepresentation/t_cf_monocyte_up_gp_go.svg",
    height = treeplot_height, width = treeplot_width)
 go_treeplot
 dev.off()
@@ -1096,7 +1096,7 @@ enrichplot::dotplot(t_cf_neutrophil_sig_sva_up_gp[["TF_enrich"]])
 
 go_termsim <- enrichplot::pairwise_termsim(t_cf_neutrophil_sig_sva_up_gp[["BP_enrich"]])
 go_treeplot <- sm(treeplot(go_termsim, label_format = wrap_width))
-pp(file = glue("images/overrepresentation/t_cf_neutrophil_up_gp_go-v{ver}.pdf"),
+pp(file = "figures/t_cf_neutrophil_up_gp_go.svg",
    height = treeplot_height, width = treeplot_width)
 go_treeplot
 dev.off()

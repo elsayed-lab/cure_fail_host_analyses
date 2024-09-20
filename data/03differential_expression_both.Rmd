@@ -674,7 +674,7 @@ tc_clinical_cf_volcano_top10 <- plot_volcano_condition_de(
   tc_clinical_cf_table, "outcome", label = 10,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
-pp(file = glue("figures/s11c_tc_clinical_cf_volcano_labeled_top10-v{ver}.svg"))
+pp(file = "figures/s11c_tc_clinical_cf_volcano_labeled_top10.svg")
 tc_clinical_cf_volcano_top10[["plot"]]
 dev.off()
 tc_clinical_cf_volcano_top10[["plot"]]

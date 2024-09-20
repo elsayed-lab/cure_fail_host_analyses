@@ -598,7 +598,7 @@ logfc_plot <- logfc_plotter[["scatter"]] +
   xlab("DESeq2 log2FC: Visit explicitly in model") +
   ylab("DESeq2 log2FC: Default pairwise comparison") +
   ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
-pp(file = "images/compare_cf_and_visit_in_model_monocyte_logfc.svg")
+pp(file = "figures/compare_cf_and_visit_in_model_monocyte_logfc.svg")
 logfc_plot
 dev.off()
 logfc_plot
@@ -807,7 +807,7 @@ logfc_plot <- logfc_plotter[["scatter"]] +
   xlab("DESeq2 log2FC: Visit explicitly in model") +
   ylab("DESeq2 log2FC: Default pairwise comparison") +
   ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
-pp(file = "images/compare_cf_and_visit_in_model_neutrophil_logfc.svg")
+pp(file = "figures/compare_cf_and_visit_in_model_neutrophil_logfc.svg")
 logfc_plot
 dev.off()
 logfc_plot
@@ -1074,7 +1074,7 @@ logfc_plot <- logfc_plotter[["scatter"]] +
   xlab("DESeq2 log2FC: Visit explicitly in model") +
   ylab("DESeq2 log2FC: Default pairwise comparison") +
   ggtitle(glue("Comparing results from models: {prettyNum(cor_value[['estimate']])} (pearson)"))
-pp(file = "images/compare_cf_and_visit_in_model_eosinophil_logfc.svg")
+pp(file = "figures/compare_cf_and_visit_in_model_eosinophil_logfc.svg")
 logfc_plot
 dev.off()
 logfc_plot
@@ -1139,7 +1139,7 @@ cf_monocyte_volcano <- plot_volcano_condition_de(
   cf_monocyte_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
-pp(file = glue("images/cf_monocyte_volcano_labeled-v{ver}.svg"))
+pp(file = "figures/cf_monocyte_volcano_labeled.svg")
 cf_monocyte_volcano[["plot"]]
 dev.off()
 cf_monocyte_volcano[["plot"]]
@@ -1158,7 +1158,7 @@ cf_eosinophil_volcano <- plot_volcano_condition_de(
   cf_eosinophil_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
-pp(file = glue("images/cf_eosinophil_volcano_labeled-v{ver}.svg"))
+pp(file = "figures/cf_eosinophil_volcano_labeled.svg")
 cf_eosinophil_volcano[["plot"]]
 dev.off()
 cf_eosinophil_volcano[["plot"]]
@@ -1177,7 +1177,7 @@ cf_neutrophil_volcano <- plot_volcano_condition_de(
   cf_neutrophil_table, "outcome", label = wanted_genes,
   fc_col = "deseq_logfc", p_col = "deseq_adjp", line_position = NULL,
   color_high = num_color, color_low = den_color, label_size = 6)
-pp(file = glue("images/cf_neutrophil_volcano_labeled-v{ver}.svg"))
+pp(file = "images/cf_neutrophil_volcano_labeled.svg")
 cf_neutrophil_volcano[["plot"]]
 dev.off()
 cf_neutrophil_volcano[["plot"]]

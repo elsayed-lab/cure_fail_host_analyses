@@ -412,7 +412,7 @@ regression_tests <- c("Age", "Clinic", "Ethnicity", "Sex", "Weight")
 lm_regression_demographics <- extract_linear_regression(
   regression_numeric, query = "Therapeutic_Outcome_Final", factors = regression_tests,
   excel = glue("excel/numeric_demographics_regression_final_sex_clinic_ethnicity_age-v{ver}.xlsx"))
-pp(file = "images/demographics_only_linear_regression.svg")
+pp(file = "figures/demographics_only_linear_regression.svg")
 lm_regression_demographics[["forest"]]
 dev.off()
 lm_regression_demographics[["forest"]]
@@ -435,7 +435,7 @@ log_regression_demographics[["summary"]]
 
 tc_log_iterative_regression_demographics <- iterate_logistic_regression(
   regression_df, query = "Therapeutic_Outcome_Final", factors = regression_tests,
-  excel = glue("excel/tc_simple_logistic_regression-v{ver}.xlsx"))
+  excel = glue("excel/tc_simple_logistic_regression.xlsx"))
 pp(file = glue("figures/tc_simple_logistic_regression-v{ver}.svg"))
 tc_log_iterative_regression_demographics[["forest"]]
 dev.off()
@@ -735,6 +735,9 @@ write.csv(tc_pca[["table"]], file = "excel/tc_donor_pca_coords.csv")
 tc_cf_norm <- set_expt_batches(tc_norm, fact = "visitnumber")
 tc_cf_corheat <- plot_corheat(tc_cf_norm, plot_title = "Heirarchical clustering:
          cell types")
+pp(file = "figures/tc_cf_corheat.svg")
+tc_cf_corheat
+dev.off()
 tc_cf_corheat
 
 tc_cf_disheat <- plot_disheat(tc_cf_norm, plot_title = "Heirarchical clustering:
@@ -792,12 +795,15 @@ tc_biopsies_norm <- normalize_expt(tc_biopsies, transform = "log2",
                                    convert = "cpm", norm = "quant", filter = TRUE)
 tc_biopsies_pca <- plot_pca(tc_biopsies_norm)
 tc_biopsies_pca
+pp(file = "figures/tc_biopsies_pca.svg")
+tc_biopsies_pca[["plot"]]
+dev.off()
 
 tc_biopsies_nb <- normalize_expt(tc_biopsies, transform = "log2",
                                  convert = "cpm", batch = "svaseq", filter = TRUE)
 tc_biopsies_nb_pca <- plot_pca(tc_biopsies_nb)
 pp(file = "figures/figure3E_biopsies.svg")
-tc_biopsies_nb_pca$plot
+tc_biopsies_nb_pca[["plot"]]
 dev.off()
 tc_biopsies_nb_pca
 ```
@@ -891,7 +897,11 @@ plot_pca(etnia_eo_norm)
 
 etnia_eo_nb <- normalize_expt(tc_eo_ec, transform = "log2", convert = "cpm",
                                 filter = TRUE, batch = "svaseq")
-plot_pca(etnia_eo_nb)
+ethnicity_pca <- plot_pca(etnia_eo_nb)
+pp(file = "figures/ethnicity_eo_pca.svg")
+ethnicity_pca[["plot"]]
+dev.off()
+ethnicity_pca[["plot"]]
 ```
 
 #### Eosinophil samples, Tumaco.
@@ -929,7 +939,11 @@ plot_pca(etnia_mo_norm)
 
 etnia_mo_nb <- normalize_expt(tc_mo_ec, transform = "log2", convert = "cpm",
                               filter = TRUE, batch = "svaseq")
-plot_pca(etnia_mo_nb)
+etnia_mo_nb_pca <- plot_pca(etnia_mo_nb)
+pp(file = "figures/etnia_mo_nb_pca.svg")
+etnia_mo_nb_pca[["plot"]]
+dev.off()
+etnia_mo_nb_pca
 ```
 
 #### Monocyte samples, Tumaco.
@@ -963,7 +977,11 @@ plot_pca(etnia_ne_norm)
 
 etnia_ne_nb <- normalize_expt(tc_ne_ec, transform = "log2", convert = "cpm",
                                 filter = TRUE, batch = "svaseq")
-plot_pca(etnia_ne_nb)
+etnia_ne_nb_pca <- plot_pca(etnia_ne_nb)
+pp(file = "figures/etnia_ne_nb_pca.svg")
+etnia_ne_nb_pca[["plot"]]
+dev.off()
+etnia_ne_nb_pca
 ```
 
 #### Neutrophil samples, Tumaco.
@@ -1081,6 +1099,9 @@ tc_eosinophils_norm <- normalize_expt(tc_eosinophils, transform = "log2",
                                       convert = "cpm", norm = "quant", filter = TRUE)
 tc_eosinophils_pca <- plot_pca(tc_eosinophils_norm, plot_labels = FALSE)
 tc_eosinophils_pca
+pp(file = "figures/tc_eosinophils.svg")
+tc_eosinophils_pca[["plot"]]
+dev.off()
 
 tc_eosinophils_nb <- normalize_expt(tc_eosinophils, transform = "log2",
                                     convert = "cpm", batch = "svaseq", filter = TRUE)
@@ -1105,6 +1126,9 @@ tc_monocytes_norm <- normalize_expt(tc_monocytes, transform = "log2",
                                        convert = "cpm", norm = "quant", filter = TRUE)
 tc_monocytes_pca <- plot_pca(tc_monocytes_norm, plot_labels = FALSE)
 tc_monocytes_pca
+pp(file = "figures/tc_monocytes_pca.svg")
+tc_monocytes_pca[["plot"]]
+dev.off()
 
 tc_monocytes_nb <- normalize_expt(tc_monocytes, transform = "log2",
                                   convert = "cpm", batch = "svaseq", filter = TRUE)
@@ -1127,6 +1151,9 @@ tc_neutrophils_norm <- normalize_expt(tc_neutrophils, transform = "log2",
                                       convert = "cpm", norm = "quant", filter = TRUE)
 tc_neutrophils_pca <- plot_pca(tc_neutrophils_norm, plot_labels = FALSE)
 tc_neutrophils_pca
+pp(file = "figures/tc_neutrophils_pca.svg")
+tc_neutrophils_pca[["plot"]]
+dev.off()
 
 tc_neutrophils_nb <- normalize_expt(tc_neutrophils, transform = "log2",
                                     convert = "cpm", batch = "svaseq", filter = TRUE)
@@ -1398,7 +1425,7 @@ limited to the Tumaco samples.
 t_clinical_nobiop_norm <- normalize_expt(t_clinical_nobiop, filter = TRUE, norm = "quant",
                                          convert = "cpm", transform = "log2")
 t_clinical_nobiop_pca <- plot_pca(t_clinical_nobiop_norm, plot_labels = FALSE)
-pp(file = "figures/t_clinical_nobiop_figxxa.pdf")
+pp(file = "figures/t_clinical_nobiop_pca.svg")
 t_clinical_nobiop_pca[["plot"]]
 dev.off()
 t_clinical_nobiop_pca
@@ -1418,7 +1445,7 @@ t_clinical_nobiop_nb_pca
 tc_clinical_nobiop_norm <- normalize_expt(tc_clinical_nobiop, filter = TRUE, norm = "quant",
                                           convert = "cpm", transform = "log2")
 tc_clinical_nobiop_pca <- plot_pca(tc_clinical_nobiop_norm, plot_labels = FALSE)
-pp(file = "figures/tc_clinical_nobiop_figxxc.pdf")
+pp(file = "figures/tc_clinical_nobiop_pca.svg")
 tc_clinical_nobiop_pca[["plot"]]
 dev.off()
 tc_clinical_nobiop_pca
@@ -1426,7 +1453,7 @@ tc_clinical_nobiop_pca
 tc_clinical_nobiop_nb <- normalize_expt(tc_clinical_nobiop, filter = TRUE, convert = "cpm",
                                         transform = "log2", batch = "svaseq")
 tc_clinical_nobiop_nb_pca <- plot_pca(tc_clinical_nobiop_nb, plot_labels = FALSE)
-pp(file = "figures/tc_clinical_nobiop_sva_figxxd.pdf")
+pp(file = "figures/tc_clinical_nobiop_sva_pca.svg")
 tc_clinical_nobiop_nb_pca[["plot"]]
 dev.off()
 tc_clinical_nobiop_nb_pca
@@ -1961,16 +1988,16 @@ t_visit_monocyte_norm <- normalize_expt(t_visit_monocyte,
                                         norm = "quant", filter = TRUE)
 
 t_visit_monocyte_norm_pca <- plot_pca(t_visit_monocyte_norm, plot_labels = FALSE)
-pp(file = "images/t_monocyte_visit_norm_pca.pdf")
-t_visit_monocyte_norm_pca$plot
+pp(file = "figures/t_monocyte_visit_norm_pca.svg")
+t_visit_monocyte_norm_pca[["plot"]]
 dev.off()
 t_visit_monocyte_norm_pca
 t_visitcf_monocyte_nb <- normalize_expt(t_visitcf_monocyte,
                                         transform = "log2", convert = "cpm",
                                         batch = "svaseq", filter = TRUE)
 t_visitcf_monocyte_nb_pca <- plot_pca(t_visitcf_monocyte_nb, plot_labels = FALSE)
-pp(file = "images/t_monocyte_visit_sva_pca.pdf")
-t_visitcf_monocyte_nb_pca$plot
+pp(file = "figures/t_monocyte_visit_sva_pca.svg")
+t_visitcf_monocyte_nb_pca[["plot"]]
 dev.off()
 t_visitcf_monocyte_nb_pca
 ```
@@ -1986,16 +2013,16 @@ t_visit_eosinophil_norm <- normalize_expt(t_visit_eosinophil,
                                           transform = "log2", convert = "cpm",
                                           norm = "quant", filter = TRUE)
 t_visit_eosinophil_norm_pca <- plot_pca(t_visit_eosinophil_norm, plot_labels = FALSE)
-pp(file = "images/t_eosinophil_visit_norm_pca.pdf")
-t_visit_eosinophil_norm_pca$plot
+pp(file = "figures/t_eosinophil_visit_norm_pca.svg")
+t_visit_eosinophil_norm_pca[["plot"]]
 dev.off()
 t_visit_eosinophil_norm_pca
 t_visit_eosinophil_nb <- normalize_expt(t_visit_eosinophil,
                                         transform = "log2", convert = "cpm",
                                         batch = "svaseq", filter = TRUE)
 t_visit_eosinophil_nb_pca <- plot_pca(t_visit_eosinophil_nb, plot_labels = FALSE)
-pp(file = "images/t_eosinophil_visit_sva_pca.pdf")
-t_visit_eosinophil_nb_pca$plot
+pp(file = "figures/t_eosinophil_visit_sva_pca.svg")
+t_visit_eosinophil_nb_pca[["plot"]]
 dev.off()
 t_visit_eosinophil_nb_pca
 ```
@@ -2011,16 +2038,16 @@ t_visit_neutrophil_norm <- normalize_expt(t_visit_neutrophil,
                                           transform = "log2", convert = "cpm",
                                           norm = "quant", filter = TRUE)
 t_visit_neutrophil_norm_pca <- plot_pca(t_visit_neutrophil_norm, plot_labels = FALSE)
-pp(file = "images/t_neutrophil_visit_norm_pca.pdf")
-t_visit_neutrophil_norm_pca$plot
+pp(file = "figures/t_neutrophil_visit_norm_pca.svg")
+t_visit_neutrophil_norm_pca[["plot"]]
 dev.off()
 t_visit_neutrophil_norm_pca
 t_visit_neutrophil_nb <- normalize_expt(t_visit_neutrophil,
                                         transform = "log2", convert = "cpm",
                                         batch = "svaseq", filter = TRUE)
 t_visit_neutrophil_nb_pca <- plot_pca(t_visit_neutrophil_nb, plot_labels = FALSE)
-pp(file = "images/t_neutrophil_visit_sva_pca.pdf")
-t_visit_neutrophil_nb_pca$plot
+pp(file = "figures/t_neutrophil_visit_sva_pca.svg")
+t_visit_neutrophil_nb_pca[["plot"]]
 dev.off()
 t_visit_neutrophil_nb_pca
 ```
@@ -2330,6 +2357,9 @@ lp_cf_corheat <- plot_corheat(lp_cf_norm)
 lp_cf_corheat
 lp_cf_norm_pca <- plot_pca(lp_cf_norm)
 lp_cf_norm_pca
+pp(file = "figures/lp_cf_norm_pca.svg")
+lp_cf_norm_pca[["plot"]]
+dev.off()
 
 lp_cf_nb <- normalize_expt(lp_cf, transform = "log2", convert = "cpm",
                            batch = "svaseq", filter = "simple")
