@@ -48,7 +48,7 @@ data/preprocessing/pruned_counts_host.tar /data/preprocessing/pruned_counts_host
 data/preprocessing/pruned_counts_parasite.tar /data/preprocessing/pruned_counts_parasite.tar
 data/preprocessing/scott_counts.tar /data/preprocessing/scott_counts.tar
 data/sample_sheets/scott_sra_samples.xlsx /data/sample_sheets/scott_sra_samples.xlsx
-data/sample_sheets/scott_capsule_studydesign.tsv /data/sample/sheets/scott_capsule_studydesign.tsv
+data/sample_sheets/scott_capsule_studydesign.tsv /data/sample_sheets/scott_capsule_studydesign.tsv
 data/sample_sheets/tmrc3_demographics.xlsx /data/sample_sheets/tmrc3_demographics.xlsx
 data/sample_sheets/tmrc3_demographicsv2.xlsx /data/sample_sheets/tmrc3_demographicsv2.xlsx
 data/sample_sheets/tmrc3_samples_pruned.xlsx /data/sample_sheets/tmrc3_samples_pruned.xlsx

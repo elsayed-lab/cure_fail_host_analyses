@@ -41,7 +41,7 @@ function dump() {
     echo "This includes all the R packages, any built genomes, all the raw data, _everything_."
     echo "You have 5 seconds to hit control-C before it starts."
     sleep 5
-    rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
+    rsync -av /data/ --exclude='R' --exclude='renv.lock' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
 }
 
 
@@ -113,7 +113,7 @@ inputs="${DEFAULT_INPUT}"
 echo "No colon-separated input file(s) given, analyzing the archived data."
 echo "About to rsync the data tree with: "
 echo "  rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' ."
-rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
+rsync -av /data/ --exclude='R' --exclude='renv.lock' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
 for i in $(/bin/ls /data/preprocessing/*.tar); do
     untarred=$(cd preprocessing && tar xaf "${i}")
 done
