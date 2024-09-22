@@ -678,7 +678,11 @@ comparison <- list("de" = top_bottom_ids, "ml" = top_glm)
 comparison_venn <- Vennerable::Venn(comparison)
 comparison_lfc[["glm"]] <- fData(c_monocytes)[comparison_venn@IntersectionSets["11"][[1]], ]
 Vennerable::plot(comparison_venn, doWeights = FALSE, type = "circles")
+```
 
+Dropping the adjp and wgcna comparisons, they show little overlap.
+
+```{r, eval=FALSE}
 comparison <- list("de" = lowest_adjp, "ml" = top_glm)
 comparison_venn <- Vennerable::Venn(comparison)
 comparison_adjp[["glm"]] <- fData(c_monocytes)[comparison_venn@IntersectionSets["11"][[1]], ]

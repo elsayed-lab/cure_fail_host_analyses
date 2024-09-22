@@ -304,7 +304,7 @@ t_cf_clinicalnb_gp_up
 go_termsim <- enrichplot::pairwise_termsim(t_cf_clinicalnb_gp_up[["BP_enrich"]])
 t_cf_clinicalnb_gp_go_up_tree <- sm(enrichplot::treeplot(go_termsim,
                                                          label_format = wrap_width))
-pp(file = "images/overrepresentation/t_cf_clinicalnb_gp_up_tree.pdf",
+pp(file = "figures/t_cf_clinicalnb_gp_up_tree.svg",
    width = treeplot_width, height = treeplot_height)
 t_cf_clinicalnb_gp_go_up_tree
 dev.off()
@@ -1206,7 +1206,7 @@ t_cf_monocyte_v1_sig_sva_up_cp <- simple_cprofiler(t_cf_monocyte_v1_sig_sva_up,
                                                    t_cf_monocyte_v1_table_sva,
                                                    orgdb = "org.Hs.eg.db")
 enrichplot::dotplot(t_cf_monocyte_v1_sig_sva_up_cp[["enrich_objects"]][["BP_all"]])
-t_cf_monocyte_v1_topn_gsea <- plot_topn_gsea(t_cf_monocyte_v1_sig_sva_cp)
+t_cf_monocyte_v1_topn_gsea <- plot_topn_gsea(t_cf_monocyte_v1_sig_sva_up_cp)
 t_cf_monocyte_v1_topn_gsea[["GO_outcome_up"]][[1]]
 ```
 
