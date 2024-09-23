@@ -190,7 +190,7 @@ tc_monocytes_pca <- plot_pca(tc_monocytes_norm, plot_labels = FALSE)
 tc_monocytes_pca
 ```
 
-![PCA post SVA showing all monocytes](figures/figure3B_monocytes.svg)
+![PCA post SVA showing all monocytes](figures/figure3C_monocytes.svg)
 
 ### Panel D
 
