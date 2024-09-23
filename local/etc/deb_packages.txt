@@ -2,6 +2,7 @@ build-essential
 bzip2
 ca-certificates
 cmake
+coreutils
 curl
 emacs
 environment-modules

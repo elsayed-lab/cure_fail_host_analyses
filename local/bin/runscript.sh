@@ -123,7 +123,7 @@ if [[ -n "${untarred}" ]]; then
 fi
 render_inputs
 cd "${start}" || exit
-rm current_output
-ln -s "${OUTPUT_DIR}" current_output
+rm -f current_output
+/usr/bin/ln -s "${OUTPUT_DIR}" current_output
 minutes=$(( ${SECONDS} / 60 ))
 echo "This set of analyses completed in ${minutes} minutes."
