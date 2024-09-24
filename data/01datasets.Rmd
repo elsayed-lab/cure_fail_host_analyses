@@ -38,10 +38,10 @@ pre {
 </style>
 
 ```{r options, include = FALSE}
-library(hpgltools)
 library(dplyr)
 library(forcats)
 library(glue)
+library(hpgltools)
 library(tidyr)
 
 knitr::opts_knit$set(progress = TRUE, verbose = TRUE, width = 90, echo = TRUE)

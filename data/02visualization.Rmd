@@ -436,7 +436,7 @@ log_regression_demographics[["summary"]]
 tc_log_iterative_regression_demographics <- iterate_logistic_regression(
   regression_df, query = "Therapeutic_Outcome_Final", factors = regression_tests,
   excel = glue("excel/tc_simple_logistic_regression.xlsx"))
-pp(file = glue("figures/tc_simple_logistic_regression-v{ver}.svg"))
+pp(file = glue("figures/tc_simple_logistic_regression.svg"))
 tc_log_iterative_regression_demographics[["forest"]]
 dev.off()
 tc_log_iterative_regression_demographics[["forest"]]
@@ -481,7 +481,7 @@ supplemental Figure.
 t_log_regression_demographics <- extract_logistic_regression(
   t_regression_df, query = "Therapeutic_Outcome_Final", factors = t_regression_tests,
   excel = glue("excel/t_multivariable_logistic_regression-v{ver}.xlsx"))
-pp(file = glue("figures/t_multivariable_logistic_regression-v{ver}.svg"))
+pp(file = glue("figures/t_multivariable_logistic_regression.svg"))
 t_log_regression_demographics[["forest"]]
 dev.off()
 t_log_regression_demographics[["forest"]]
@@ -940,7 +940,7 @@ plot_pca(etnia_mo_norm)
 etnia_mo_nb <- normalize_expt(tc_mo_ec, transform = "log2", convert = "cpm",
                               filter = TRUE, batch = "svaseq")
 etnia_mo_nb_pca <- plot_pca(etnia_mo_nb)
-pp(file = "figures/etnia_mo_nb_pca.svg")
+pp(file = "figures/ethnicity_mo_nb_pca.svg")
 etnia_mo_nb_pca[["plot"]]
 dev.off()
 etnia_mo_nb_pca
@@ -978,7 +978,7 @@ plot_pca(etnia_ne_norm)
 etnia_ne_nb <- normalize_expt(tc_ne_ec, transform = "log2", convert = "cpm",
                                 filter = TRUE, batch = "svaseq")
 etnia_ne_nb_pca <- plot_pca(etnia_ne_nb)
-pp(file = "figures/etnia_ne_nb_pca.svg")
+pp(file = "figures/ethnicity_ne_nb_pca.svg")
 etnia_ne_nb_pca[["plot"]]
 dev.off()
 etnia_ne_nb_pca
@@ -1433,7 +1433,7 @@ t_clinical_nobiop_pca
 t_clinical_nobiop_nb <- normalize_expt(t_clinical_nobiop, filter = TRUE, convert = "cpm",
                                        transform = "log2", batch = "svaseq")
 t_clinical_nobiop_nb_pca <- plot_pca(t_clinical_nobiop_nb, plot_labels = FALSE)
-pp(file = "figures/t_clinical_nobiop_sva_figxxb.pdf")
+pp(file = "figures/t_clinical_nobiop_sva_pca.svg")
 t_clinical_nobiop_nb_pca[["plot"]]
 dev.off()
 t_clinical_nobiop_nb_pca
