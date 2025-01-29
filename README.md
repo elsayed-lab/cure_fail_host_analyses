@@ -1,5 +1,24 @@
 [![DOI](https://zenodo.org/badge/712104518.svg)](https://zenodo.org/doi/10.5281/zenodo.13798788)
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [Introduction](#introduction)
+- [Cheater installation](#cheater-installation)
+- [Installation](#installation)
+- [Creating the container](#creating-the-container)
+    - [Notes on the Makefile](#notes-on-the-makefile)
+- [Generating the html/rda/excel output files](#generating-the-htmlrdaexcel-output-files)
+- [Playing around inside the container](#playing-around-inside-the-container)
+    - [-](#-)
+- [Experimenting with renv](#experimenting-with-renv)
+    - [renv setup](#renv-setup)
+    - [Performed in the working tree of the container](#performed-in-the-working-tree-of-the-container)
+    - [Performed in /tmp/ using the bare-bones /usr/bin/R](#performed-in-tmp-using-the-bare-bones-usrbinr)
+- [Final notes](#final-notes)
+
+<!-- markdown-toc end -->
+
 # Introduction
 
 Define, create, and run the analyses used in the paper:

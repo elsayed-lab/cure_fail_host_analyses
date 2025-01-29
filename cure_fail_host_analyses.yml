@@ -80,7 +80,7 @@ Maintainer Ashton Trey Belew <abelew@umd.edu>
 echo "export CONTAINER_VERSION='202408'" > /versions.txt
 echo "export BIOC_VERSION='3.19'" >> /versions.txt
 echo "export R_VERSION='4.4.1'" >> /versions.txt
-echo "export HPGLTOOLS_COMMIT='2ba131c696f93b44a2360e412fbba5b008699c83'" >> /versions.txt
+#echo "export HPGLTOOLS_COMMIT='2ba131c696f93b44a2360e412fbba5b008699c83'" >> /versions.txt
 /usr/local/bin/bootstrap.sh
 
 

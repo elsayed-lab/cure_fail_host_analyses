@@ -113,10 +113,11 @@ inputs="${DEFAULT_INPUT}"
 echo "No colon-separated input file(s) given, analyzing the archived data."
 echo "About to rsync the data tree with: "
 echo "  rsync -av /data/ --exclude='R' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' ."
-rsync -av /data/ --exclude='R' --exclude='renv.lock' --exclude='*.tar' --exclude='renv/' --exclude='hpgltools/' .
+rsync -av /data/ --exclude='R' --exclude='renv.lock' --exclude='*.tar' --exclude='renv/' --exclude='hpgltools/' --exclude='hpgldata/' .
 for i in $(/bin/ls /data/preprocessing/*.tar); do
     untarred=$(cd preprocessing && tar xaf "${i}")
 done
+mkdir rda  ## I am not sure if this is needed
 
 if [[ -n "${untarred}" ]]; then
     echo "The tar command appears to have printed some output."

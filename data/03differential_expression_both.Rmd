@@ -144,22 +144,22 @@ clinic_contrasts <- list(
 ## In some cases we have no Cali failure samples, so there remain only 2
 ## contrasts that are likely of interest
 tc_cf_contrasts <- list(
-  "tumaco" = c("tumacofailure", "tumacocure"),
-  "cure" = c("tumacocure", "calicure"))
+  "tumaco" = c("tumaco_failure", "tumaco_cure"),
+  "cure" = c("tumaco_cure", "cali_cure"))
 ## In other cases, we have cure/fail for both places.
 clinic_cf_contrasts <- list(
-  "cali" = c("califailure", "calicure"),
-  "tumaco" = c("tumacofailure", "tumacocure"),
-  "cure" = c("tumacocure", "calicure"),
-  "fail" = c("tumacofailure", "califailure"))
+  "cali" = c("cali_failure", "cali_cure"),
+  "tumaco" = c("tumaco_failure", "tumaco_cure"),
+  "cure" = c("tumaco_cure", "cali_cure"),
+  "fail" = c("tumaco_failure", "cali_failure"))
 cf_contrast <- list(
-  "outcome" = c("tumacofailure", "tumacocure"))
+  "outcome" = c("tumaco_failure", "tumaco_cure"))
 t_cf_contrast <- list(
   "outcome" = c("failure", "cure"))
 visitcf_contrasts <- list(
-  "v1cf" = c("v1failure", "v1cure"),
-  "v2cf" = c("v2failure", "v2cure"),
-  "v3cf" = c("v3failure", "v3cure"))
+  "v1cf" = c("v1_failure", "v1_cure"),
+  "v2cf" = c("v2_failure", "v2_cure"),
+  "v3cf" = c("v3_failure", "v3_cure"))
 visit_contrasts <- list(
   "v2v1" = c("c2", "c1"),
   "v3v1" = c("c3", "c1"),
@@ -191,7 +191,7 @@ tc_clinic_type <- tc_valid %>%
 
 table(pData(tc_clinic_type)[["condition"]])
 tc_all_clinic_de_sva <- all_pairwise(tc_clinic_type, model_batch = "svaseq",
-                                     filter = TRUE, parallel = parallel, methods = methods)
+                                     filter = TRUE, methods = methods)
 tc_all_clinic_de_sva
 tc_all_clinic_de_sva[["deseq"]][["contrasts_performed"]]
 
@@ -277,7 +277,7 @@ tc_eosinophils_clinic_sig_nobatch <- extract_significant_genes(
 tc_eosinophils_clinic_sig_nobatch
 
 tc_eosinophils_clinic_de_sva <- all_pairwise(tc_eosinophils, model_batch = "svaseq",
-                                             parallel = parallel, filter = TRUE, methods = methods)
+                                             filter = TRUE, methods = methods)
 tc_eosinophils_clinic_de_sva
 tc_eosinophils_clinic_de_sva[["deseq"]][["contrasts_performed"]]
 
@@ -332,7 +332,7 @@ correspond to the PCA plot above when no batch estimation was performed.
 ```{r}
 table(pData(tc_monocytes)[["condition"]])
 tc_monocytes_de_nobatch <- all_pairwise(tc_monocytes, model_batch = FALSE,
-                                        parallel = parallel, filter = TRUE,
+                                        filter = TRUE,
                                         methods = methods)
 tc_monocytes_de_nobatch
 
@@ -355,7 +355,7 @@ differences between the Tumaco cure and fail samples.
 
 ```{r}
 tc_monocytes_de_sva <- all_pairwise(tc_monocytes, model_batch = "svaseq",
-                                    parallel = parallel, filter = TRUE,
+                                    filter = TRUE,
                                     methods = methods)
 tc_monocytes_de_sva
 
@@ -608,7 +608,7 @@ two clinics.
 ```{r}
 table(pData(tc_valid)[["condition"]])
 tc_all_cf_de_sva <- all_pairwise(tc_valid, filter = TRUE, methods = methods,
-                                 parallel = parallel, model_batch = "svaseq")
+                                 model_batch = "svaseq")
 tc_all_cf_table_sva <- combine_de_tables(
   tc_all_cf_de_sva, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_table_sva-v{ver}.xlsx"))
@@ -617,7 +617,7 @@ tc_all_cf_sig_sva <- extract_significant_genes(
   excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_sig_sva-v{ver}.xlsx"))
 
 tc_all_cf_de_batch <- all_pairwise(tc_valid, filter = TRUE, methods = methods,
-                                   parallel = parallel, model_batch = TRUE)
+                                   model_batch = TRUE)
 tc_all_cf_table_batch <- combine_de_tables(
   tc_all_cf_de_batch, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/All_Samples/tc_valid_cf_table_batch-v{ver}.xlsx"))
@@ -634,7 +634,7 @@ samples excluding biopsies 'clinical'.
 ```{r}
 table(pData(tc_clinical_nobiop)[["condition"]])
 tc_clinical_cf_de_sva <- all_pairwise(tc_clinical_nobiop, filter = TRUE,
-                                      parallel = parallel, model_batch = "svaseq",
+                                      model_batch = "svaseq",
                                       methods = methods)
 tc_clinical_cf_de_sva
 
@@ -649,7 +649,7 @@ tc_clinical_cf_sig_sva <- extract_significant_genes(
 tc_clinical_cf_sig_sva
 
 tc_clinical_cf_de_batch <- all_pairwise(tc_clinical_nobiop, filter = TRUE,
-                                        parallel = parallel, model_batch = TRUE,
+                                        model_batch = TRUE,
                                         methods = methods)
 tc_clinical_cf_de_batch
 
@@ -688,7 +688,7 @@ the biopsy samples from both clinics.
 ```{r}
 tc_biopsies_cf <- set_expt_conditions(tc_biopsies, fact = "finaloutcome")
 tc_biopsies_cf_de_sva <- all_pairwise(tc_biopsies_cf, filter = TRUE, methods = methods,
-                                      parallel = parallel, model_batch = "svaseq")
+                                      model_batch = "svaseq")
 tc_biopsies_cf_table_sva <- combine_de_tables(
   tc_biopsies_cf_de_sva, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/Biopsies/tc_biopsies_cf_table_sva-v{ver}.xlsx"))
@@ -697,7 +697,7 @@ tc_biopsies_cf_sig_sva <- extract_significant_genes(
   excel = glue("{cf_prefix}/All_Samples/tc_biopsies_cf_sig_sva-v{ver}.xlsx"))
 
 tc_biopsies_cf_de_batch <- all_pairwise(tc_biopsies_cf, filter = TRUE, methods = methods,
-                                        parallel = parallel, model_batch = TRUE)
+                                        model_batch = TRUE)
 tc_biopsies_cf_table_batch <- combine_de_tables(
   tc_biopsies_cf_de_batch, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/All_Samples/tc_biopsies_cf_table_batch-v{ver}.xlsx"))
@@ -714,7 +714,7 @@ the Eosinophil samples from both clinics.
 ```{r}
 tc_eosinophils_cf <- set_expt_conditions(tc_eosinophils, fact = "finaloutcome")
 tc_eosinophils_cf_de_sva <- all_pairwise(tc_eosinophils_cf, filter = TRUE, methods = methods,
-                                         parallel = parallel, model_batch = "svaseq")
+                                         model_batch = "svaseq")
 tc_eosinophils_cf_table_sva <- combine_de_tables(
   tc_eosinophils_cf_de_sva, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/Eosinophils/tc_eosinophils_cf_table_sva-v{ver}.xlsx"))
@@ -723,7 +723,7 @@ tc_eosinophils_cf_sig_sva <- extract_significant_genes(
   excel = glue("{cf_prefix}/All_Samples/tc_eosinophils_cf_sig_sva-v{ver}.xlsx"))
 
 tc_eosinophils_cf_de_batch <- all_pairwise(tc_eosinophils_cf, filter = TRUE,
-                                           parallel = parallel, model_batch = TRUE,
+                                           model_batch = TRUE,
                                            methods = methods)
 tc_eosinophils_cf_table_batch <- combine_de_tables(
   tc_eosinophils_cf_de_batch, keepers = t_cf_contrast,
@@ -742,7 +742,7 @@ discriminating the two clinics.
 ```{r}
 tc_monocytes_cf <- set_expt_conditions(tc_monocytes, fact = "finaloutcome")
 tc_monocytes_cf_de_sva <- all_pairwise(tc_monocytes_cf, filter = TRUE, methods = methods,
-                                       parallel = parallel, model_batch = "svaseq")
+                                       model_batch = "svaseq")
 tc_monocytes_cf_table_sva <- combine_de_tables(
   tc_monocytes_cf_de_sva, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/Monocytes/tc_monocytes_cf_table_sva-v{ver}.xlsx"))
@@ -751,7 +751,7 @@ tc_monocytes_cf_sig_sva <- extract_significant_genes(
   excel = glue("{cf_prefix}/All_Samples/tc_monocytes_cf_sig_sva-v{ver}.xlsx"))
 
 tc_monocytes_cf_de_batch <- all_pairwise(tc_monocytes_cf, filter = TRUE, methods = methods,
-                                         parallel = parallel, model_batch = TRUE)
+                                         model_batch = TRUE)
 tc_monocytes_cf_table_batch <- combine_de_tables(
   tc_monocytes_cf_de_batch, keepers = t_cf_contrast,
   excel = glue("{cf_prefix}/All_Samples/tc_monocytes_cf_table_batch-v{ver}.xlsx"))
@@ -777,7 +777,7 @@ tc_neutrophils_cf_sig_sva <- extract_significant_genes(
   excel = glue("{cf_prefix}/All_Samples/tc_neutrophils_cf_sig_sva-v{ver}.xlsx"))
 
 tc_neutrophils_cf_de_batch <- all_pairwise(tc_neutrophils_cf, filter = TRUE,
-                                           parallel = parallel, model_batch = TRUE,
+                                           model_batch = TRUE,
                                            methods = methods)
 tc_neutrophils_cf_table_batch <- combine_de_tables(
   tc_neutrophils_cf_de_batch, keepers = t_cf_contrast,
@@ -796,7 +796,7 @@ moved to this document.
 
 ```{r}
 v1_vs_later <- all_pairwise(tc_v1vs, model_batch = "svaseq", methods = methods,
-                            parallel = parallel, filter = TRUE)
+                            filter = TRUE)
 v1_vs_later_table <- combine_de_tables(
   v1_vs_later, keepers = visit_v1later,
   excel = glue("{visit_prefix}/v1_vs_later_tables-v{ver}.xlsx"))
@@ -817,7 +817,7 @@ v1later_gp[[2]]$pvalue_plots$REAC
 
 ```{r}
 tc_sex_de <- all_pairwise(tc_sex, model_batch = "svaseq", methods = methods,
-                          parallel = parallel, filter = TRUE)
+                          filter = TRUE)
 tc_sex_table <- combine_de_tables(
   tc_sex_de, excel = glue("{sex_prefix}/tc_sex_table-v{ver}.xlsx"))
 tc_sex_sig <- extract_significant_genes(
@@ -828,7 +828,7 @@ tc_sex_gp <- all_gprofiler(tc_sex_sig)
 ```{r}
 tc_sex_cure <- subset_expt(tc_sex, subset = "finaloutcome=='cure'")
 tc_sex_cure_de <- all_pairwise(tc_sex_cure, model_batch = "svaseq",
-                               parallel = parallel, filter = TRUE,
+                               filter = TRUE,
                                methods = methods)
 tc_sex_cure_de
 tc_sex_cure_table <- combine_de_tables(
@@ -852,7 +852,7 @@ tc_sex_cure_gp[[2]][["pvalue_plots"]][["BP"]]
 
 ```{r}
 tc_ethnicity_de <- all_pairwise(tc_etnia_expt, model_batch = "svaseq",
-                                parallel = parallel, filter = TRUE,
+                                filter = TRUE,
                                 methods = methods)
 tc_ethnicity_de
 tc_ethnicity_table <- combine_de_tables(
@@ -868,7 +868,7 @@ tc_ethnicity_sig <- extract_significant_genes(
 
 ethnicity_cure <- subset_expt(tc_etnia_expt, subset = "finaloutcome=='cure'")
 ethnicity_cure_de <- all_pairwise(ethnicity_cure, model_batch = "svaseq",
-                                  parallel = parallel, filter = TRUE,
+                                  filter = TRUE,
                                   methods = methods)
 ethnicity_cure_table <- combine_de_tables(
   ethnicity_cure_de, keepers = ethnicity_contrasts,

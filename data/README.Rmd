@@ -29,6 +29,12 @@ ver <- Sys.getenv("VERSION")
 
 # Changelog
 
+* 20240930: Trying to figure out why some (but not all) of the svg
+  images are not displaying in firefox.  I can download and view them
+  in inkscape/eog!  If anyone ever reads this and knows the answer you
+  will be my new best friend.  It looks fine in chromium; also Fig2B
+  is weirdly small and has scroll bars!? (I bet I left it a pdf?  yep,
+  fixed)
 * 20240920: Maria Adelaida had the nice idea to put the images in
   this.  I therefore moved it to the back of the line, so everything
   else runs first.  Many of the figures were produced as cairo pdf; I
@@ -137,7 +143,7 @@ tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
 tc_pca
 ```
 
-![PCA showing celltypes](figures/tc_pca_nosize.pdf)
+![PCA showing celltypes](figures/tc_pca_nosize.svg)
 
 ### Panel C
 

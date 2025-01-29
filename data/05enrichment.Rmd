@@ -162,19 +162,19 @@ clusterProfiler's tree (taken from topGO) plotter because it spams
 plots _everywhere_...
 
 ```{r}
-input_xlsx <- glue("analyses/3_cali_and_tumaco/DE_Cure_Fail/Clinical_Samples/tc_clinical_cf_table_sva-v{ver}.xlsx")
-all_de_cf_table <- table_reader(input_xlsx, "outcome")
+tc_clinical_xlsx <- glue("analyses/3_cali_and_tumaco/DE_Cure_Fail/Clinical_Samples/tc_clinical_cf_table_sva-v{ver}.xlsx")
+all_de_cf_table <- table_reader(tc_clinical_xlsx, "outcome")
 
 all_de_cf_up <- sig_reader(glue("analyses/3_cali_and_tumaco/DE_Cure_Fail/Clinical_Samples/tc_clinical_cf_sig_sva-v{ver}.xlsx"), "outcome", "up")
 all_de_cf_down <- sig_reader(glue("analyses/3_cali_and_tumaco/DE_Cure_Fail/Clinical_Samples/tc_clinical_cf_sig_sva-v{ver}.xlsx"), "outcome", "down")
 all_de_cf <- rbind.data.frame(all_de_cf_up, all_de_cf_down)
 
-tumaco_xlsx <- glue("analyses/4_tumaco/DE_Cure_Fail/t_all_visitcf_sig_sva-v{ver}.xlsx")
-t_de_cf <- openxlsx::readWorkbook(tumaco_xlsx, sheet = 3, startRow = 2)
+t_clinical_xlsx <- glue("analyses/4_tumaco/DE_Cure_Fail/t_all_visitcf_sig_sva-v{ver}.xlsx")
+t_de_cf <- openxlsx::readWorkbook(t_clinical_xlsx, sheet = 3, startRow = 2)
 rownames(t_de_cf) <- t_de_cf[["row.names"]]
 t_de_cf[["row.names"]] <- NULL
 t_de_cf_up <- t_de_cf[, c("deseq_logfc", "deseq_adjp", "deseq_basemean", "deseq_lfcse")]
-t_de_cf <- openxlsx::readWorkbook(tumaco_xlsx, sheet = 4, startRow = 2)
+t_de_cf <- openxlsx::readWorkbook(t_clinical_xlsx, sheet = 4, startRow = 2)
 rownames(t_de_cf) <- t_de_cf[["row.names"]]
 t_de_cf[["row.names"]] <- NULL
 t_de_cf_down <- t_de_cf[, c("deseq_logfc", "deseq_adjp", "deseq_basemean", "deseq_lfcse")]
@@ -209,23 +209,23 @@ The xlsx files are:
 * "{cf_prefix}/All_Samples/t_clinical_cf_sig_sva-v{ver}.xlsx"
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_cf_table_sva-v{ver}.xlsx")
-t_clinical_cf_table_sva <- table_reader(input_xlsx, "outcome")
+t_clinical_cf_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_cf_table_sva-v{ver}.xlsx")
+t_clinical_cf_table_sva <- table_reader(t_clinical_cf_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_cf_sig_sva-v{ver}.xlsx")
-t_clinical_cf_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_clinical_cf_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_clinical_cf_sig_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_cf_sig_sva-v{ver}.xlsx")
+t_clinical_cf_sig_sva_up <- sig_reader(t_clinical_cf_sig_xlsx, "outcome")
+t_clinical_cf_sig_sva_down <- sig_reader(t_clinical_cf_sig_xlsx, "outcome", "down")
 ```
 
 And without biopsies
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_table_sva-v{ver}.xlsx")
-t_clinicalnb_cf_table_sva <- table_reader(input_xlsx, "outcome")
+t_clinical_nobiop_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_table_sva-v{ver}.xlsx")
+t_clinicalnb_cf_table_sva <- table_reader(t_clinical_nobiop_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_sig_sva-v{ver}.xlsx")
-t_clinicalnb_cf_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_clinicalnb_cf_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_clinical_nobiop_sig_xlsx <- glue("{cf_prefix}/All_Samples/t_clinical_nobiop_cf_sig_sva-v{ver}.xlsx")
+t_clinicalnb_cf_sig_sva_up <- sig_reader(t_clinical_nobiop_sig_xlsx, "outcome")
+t_clinicalnb_cf_sig_sva_down <- sig_reader(t_clinical_nobiop_sig_xlsx, "outcome", "down")
 t_clinicalnb_cf_sig_sva_both <- rbind.data.frame(t_clinicalnb_cf_sig_sva_up,
                                                  t_clinicalnb_cf_sig_sva_down)
 ```
@@ -352,7 +352,6 @@ dev.off()
 
 No biopsies!
 
-
 ```{r}
 t_cf_clinicalnb_gp_down <- simple_gprofiler(
   t_clinicalnb_cf_sig_sva_down,
@@ -366,7 +365,11 @@ pp(file = "images/overrepresentation/t_cf_clinicalnb_gp_down_tree.pdf",
 t_cf_clinicalnb_gp_go_down_tree
 dev.off()
 t_cf_clinicalnb_gp_go_down_tree
+```
 
+#### And gene higher in either
+
+```{r}
 ## And both, this is not usually where I put this, but the
 ## clinical samples are a bit of a special case.
 t_cf_clinicalnb_gp_both <- simple_gprofiler(
@@ -420,6 +423,17 @@ t_cf_clinical_cp_down <- simple_clusterprofiler(
 enrichplot::dotplot(t_cf_clinical_cp_down[["enrich_objects"]][["BP_all"]])
 ```
 
+#### And both higher in cure or fail
+
+Note that for both I did not bother with the analysis that included biopsies.
+
+```{r}
+t_cf_clinicalnb_cp_both <- simple_clusterprofiler(
+  t_clinicalnb_cf_sig_sva_both,
+  excel = glue("{xlsx_prefix}/Gene_Set_Overrepresentation/clinical_fail_up_cp-v{ver}.xlsx"))
+enrichplot::dotplot(t_cf_clinical_cp_both[["enrich_objects"]][["BP_all"]])
+```
+
 #### GSEA
 
 GSEA is not associated with either up nor down, it takes the rank
@@ -442,19 +456,20 @@ The relevant xlsx files are:
 * "{xlsx_prefix}/DE_Visits/tv1_vs_later_sig-v{ver}.xlsx"
 
 ```{r}
-input_xlsx <- glue("{xlsx_prefix}/DE_Visits/tv1_vs_later_tables-v{ver}.xlsx")
-tv1_vs_later_table <- table_reader(input_xlsx, "later_vs_first")
+tv1_later_xlsx <- glue("{xlsx_prefix}/DE_Visits/tv1_vs_later_tables-v{ver}.xlsx")
+tv1_vs_later_table <- table_reader(tv1_later_xlsx, "later_vs_first")
 
-input_xlsx <- glue("{xlsx_prefix}/DE_Visits/tv1_vs_later_sig-v{ver}.xlsx")
-tv1_vs_later_up_sig <- sig_reader(input_xlsx, "later_vs_first")
-tv1_vs_later_down_sig <- sig_reader(input_xlsx, "later_vs_first", "down")
+tv1_later_sig_xlsx <- glue("{xlsx_prefix}/DE_Visits/tv1_vs_later_sig-v{ver}.xlsx")
+tv1_vs_later_up_sig <- sig_reader(tv1_later_sig_xlsx, "later_vs_first")
+tv1_vs_later_down_sig <- sig_reader(tv1_later_sig_xlsx, "later_vs_first", "down")
+tv1_vs_later_both <- rbind.data.frame(tv1_vs_later_up_sig, tv1_vs_later_down_sig)
 ```
 
 ### Increased in visit 1
 
 I am not likely to do the decreased in visit 1, there are only 7 genes.
 
-#### enrichment: gProfiler
+#### enrichment: gProfiler increased in visit 1
 
 ```{r}
 tv1later_up_gp <- simple_gprofiler(
@@ -464,6 +479,18 @@ tv1later_up_gp
 
 enrichplot::dotplot(tv1later_up_gp[["BP_enrich"]])
 enrichplot::dotplot(tv1later_up_gp[["REAC_enrich"]])
+```
+
+#### increased and decreased in visit 1
+
+```{r}
+tv1later_both_gp <- simple_gprofiler(
+  tv1_vs_later_both,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/tv1_vs_later_both_gp-v{ver}.xlsx"))
+tv1later_both_gp
+
+enrichplot::dotplot(tv1later_both_gp[["BP_enrich"]])
+enrichplot::dotplot(tv1later_both_gp[["REAC_enrich"]])
 ```
 
 #### enrichment: clusterProfiler
@@ -481,6 +508,18 @@ enrichplot::dotplot(tv1later_up_cp[["enrich_objects"]][["BP_all"]])
 written <- write_cp_data(
   tv1later_up_cp,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/tv1_vs_later_up_cp-v{ver}.xlsx"))
+```
+
+```{r}
+tv1later_both_cp <- simple_clusterprofiler(
+  tv1_vs_later_both, de_table = tv1_vs_later_table,
+  orgdb = "org.Hs.eg.db", kegg_prefix = "hs", do_kegg = TRUE)
+enrichplot::dotplot(tv1later_both_cp[["enrich_objects"]][["MF_all"]])
+enrichplot::dotplot(tv1later_both_cp[["enrich_objects"]][["BP_all"]])
+
+written <- write_cp_data(
+  tv1later_both_cp,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/tv1_vs_later_both_cp-v{ver}.xlsx"))
 ```
 
 #### GSEA: clusterProfiler
@@ -505,14 +544,15 @@ This has an important caveat: there are few female failures in the
 dataset and so the results may reflect that.
 
 ```{r}
-input_xlsx <- glue("{xlsx_prefix}/DE_Sex/t_sex_cure_table-v{ver}.xlsx")
-t_sex_table <- table_reader(input_xlsx, "male_vs_female")
+t_sex_xlsx <- glue("{xlsx_prefix}/DE_Sex/t_sex_cure_table-v{ver}.xlsx")
+t_sex_table <- table_reader(t_sex_xlsx, "male_vs_female")
 
-input_xlsx <- glue("{xlsx_prefix}/DE_Sex/t_sex_cure_sig-v{ver}.xlsx")
-t_sex_up_sig <- sig_reader(input_xlsx, "male_vs_female")
-t_sex_down_sig <- sig_reader(input_xlsx, "male_vs_female", "down")
+t_sex_sig_xlsx <- glue("{xlsx_prefix}/DE_Sex/t_sex_cure_sig-v{ver}.xlsx")
+t_sex_up_sig <- sig_reader(t_sex_sig_xlsx, "male_vs_female")
+t_sex_down_sig <- sig_reader(t_sex_sig_xlsx, "male_vs_female", "down")
+t_sex_both_sig <- rbind.data.frame(t_sex_up_sig, t_sex_down_sig)
 ```
-
+x
 ### gProfiler
 
 #### Increased in men
@@ -535,6 +575,15 @@ t_sex_down_gp <- simple_gprofiler(
   t_sex_down_sig,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/sex_female_up_gp-v{ver}.xlsx"))
 t_sex_down_gp
+```
+
+#### In either
+
+```{r}
+t_sex_both_gp <- simple_gprofiler(
+  t_sex_both_sig,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/sex_female_up_gp-v{ver}.xlsx"))
+t_sex_both_gp
 ```
 
 Given the results from gProfiler, I do not have high expectations for
@@ -561,6 +610,15 @@ t_sex_down_cp <- simple_clusterprofiler(
 enrichplot::dotplot(t_sex_down_cp[["enrich_objects"]][["BP_all"]])
 ```
 
+### Either
+
+```{r}
+t_sex_both_cp <- simple_clusterprofiler(
+  t_sex_both_sig, de_table = t_sex_table,
+  orgdb = "org.Hs.eg.db", kegg_prefix = "hs", do_kegg = TRUE)
+enrichplot::dotplot(t_sex_both_cp[["enrich_objects"]][["BP_all"]])
+```
+
 #### GSEA
 
 ```{r}
@@ -576,18 +634,25 @@ Once again, the relevant files to load:
 * "{xlsx_prefix}/DE_Ethnicity/t_ethnicity_sig-v{ver}.xlsx"
 
 ```{r}
-input_xlsx <- glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_table-v{ver}.xlsx")
-t_ethnicity_mestizo_indigenous <- table_reader(input_xlsx, "mestizo_indigenous")
-t_ethnicity_mestizo_afrocol <- table_reader(input_xlsx, "mestizo_afrocol")
-t_ethnicity_indigenous_afrocol <- table_reader(input_xlsx, "indigenous_afrocol")
+t_ethnicity_xlsx <- glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_table-v{ver}.xlsx")
+t_ethnicity_mestizo_indigenous <- table_reader(t_ethnicity_xlsx, "mestizo_indigenous")
+t_ethnicity_mestizo_afrocol <- table_reader(t_ethnicity_xlsx, "mestizo_afrocol")
+t_ethnicity_indigenous_afrocol <- table_reader(t_ethnicity_xlsx, "indigenous_afrocol")
 
-input_xlsx <- glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_sig-v{ver}.xlsx")
-t_ethnicity_mestizo_indigenous_up <- sig_reader(input_xlsx, "mestizo_indigenous")
-t_ethnicity_mestizo_indigenous_down <- sig_reader(input_xlsx, "mestizo_indigenous", "down")
-t_ethnicity_mestizo_afrocol_up <- sig_reader(input_xlsx, "mestizo_afrocol")
-t_ethnicity_mestizo_afrocol_down <- sig_reader(input_xlsx, "mestizo_afrocol", "down")
-t_ethnicity_indigenous_afrocol_up <- sig_reader(input_xlsx, "indigenous_afrocol")
-t_ethnicity_indigenous_afrocol_down <- sig_reader(input_xlsx, "indigenous_afrocol", "down")
+t_ethnicity_sig_xlsx <- glue("{xlsx_prefix}/DE_Ethnicity/t_ethnicity_sig-v{ver}.xlsx")
+t_ethnicity_mestizo_indigenous_up <- sig_reader(t_ethnicity_sig_xlsx, "mestizo_indigenous")
+t_ethnicity_mestizo_indigenous_down <- sig_reader(t_ethnicity_sig_xlsx, "mestizo_indigenous", "down")
+t_ethnicity_mestizo_afrocol_up <- sig_reader(t_ethnicity_sig_xlsx, "mestizo_afrocol")
+t_ethnicity_mestizo_afrocol_down <- sig_reader(t_ethnicity_sig_xlsx, "mestizo_afrocol", "down")
+t_ethnicity_indigenous_afrocol_up <- sig_reader(t_ethnicity_sig_xlsx, "indigenous_afrocol")
+t_ethnicity_indigenous_afrocol_down <- sig_reader(t_ethnicity_sig_xlsx, "indigenous_afrocol", "down")
+t_ethnicity_any <- rbind.data.frame(
+  t_ethnicity_mestizo_indigenous_up,
+  t_ethnicity_mestizo_indigenous_down,
+  t_ethnicity_mestizo_afrocol_up,
+  t_ethnicity_mestizo_afrocol_down,
+  t_ethnicity_indigenous_afrocol_up,
+  t_ethnicity_indigenous_afrocol_down)
 ```
 
 ### gProfiler
@@ -644,6 +709,19 @@ afrocol_indigenous_up_gp <- simple_gprofiler(
   t_ethnicity_indigenous_afrocol_down,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/ethnicity_ai_up_gp-v{ver}.xlsx"))
 afrocol_indigenous_up_gp
+```
+
+#### Changed in any group
+
+```{r}
+ethnicity_any_gp <- simple_gprofiler(
+  t_ethnicity_any,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/ethnicity_any_gp-v{ver}.xlsx"))
+ethnicity_any_gp
+
+enrichplot::dotplot(ethnicity_any_gp[["BP_enrich"]])
+enrichplot::dotplot(ethnicity_any_gp[["REAC_enrich"]])
+enrichplot::dotplot(ethnicity_any_gp[["TF_enrich"]])
 ```
 
 ### clusterProfiler
@@ -708,12 +786,15 @@ The relevant xlsx files are:
 * "{cf_prefix}/Visits/t_clinical_v1_cf_sig_sva-v{ver}.xlsx"
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Visits/t_clinical_v1_cf_table_sva-v{ver}.xlsx")
-t_cf_clinical_v1_table_sva <- table_reader(input_xlsx)
+t_clinical_v1_xlsx <- glue("{cf_prefix}/Visits/t_clinical_v1_cf_table_sva-v{ver}.xlsx")
+t_cf_clinical_v1_table_sva <- table_reader(t_clinical_v1_xlsx)
 
-input_xlsx <- glue("{cf_prefix}/Visits/t_clinical_v1_cf_sig_sva-v{ver}.xlsx")
-t_cf_clinical_v1_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_clinical_v1_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_clinical_v1_sig_xlsx <- glue("{cf_prefix}/Visits/t_clinical_v1_cf_sig_sva-v{ver}.xlsx")
+t_cf_clinical_v1_sig_sva_up <- sig_reader(t_clinical_v1_sig_xlsx, "outcome")
+t_cf_clinical_v1_sig_sva_down <- sig_reader(t_clinical_v1_sig_xlsx, "outcome", "down")
+t_cf_clinical_v1_sig_sva_both <- rbind.data.frame(
+  t_cf_clinical_v1_sig_sva_up,
+  t_cf_clinical_v1_sig_sva_down)
 ```
 
 ### gProfiler
@@ -731,6 +812,14 @@ t_cf_clinical_v1_sig_sva_up_gp
 t_cf_clinical_v1_sig_sva_down_gp <- simple_gprofiler(t_cf_clinical_v1_sig_sva_down)
 t_cf_clinical_v1_sig_sva_down_gp
 enrichplot::dotplot(t_cf_clinical_v1_sig_sva_down_gp[["BP_enrich"]])
+```
+
+#### Increased in either
+
+```{r}
+t_cf_clinical_v1_sig_sva_both_gp <- simple_gprofiler(t_cf_clinical_v1_sig_sva_both)
+t_cf_clinical_v1_sig_sva_both_gp
+enrichplot::dotplot(t_cf_clinical_v1_sig_sva_both_gp[["BP_enrich"]])
 ```
 
 ### clusterProfiler
@@ -755,6 +844,16 @@ t_cf_clinical_v1_sig_sva_down_cp <- simple_cprofiler(
   orgdb = "org.Hs.eg.db")
 ```
 
+#### Either increased or decreased v1 c/f
+
+```{r}
+t_cf_clinical_v1_sig_sva_both_cp <- simple_cprofiler(
+  t_cf_clinical_v1_sig_sva_both,
+  orgdb = "org.Hs.eg.db")
+
+enrichplot::dotplot(t_cf_clinical_v1_sig_sva_both_cp[["enrich_objects"]][["BP_all"]])
+```
+
 #### GSEA
 
 It appears there are too few results to perform the gsea plots.
@@ -767,12 +866,12 @@ The relevant xlsx output may be found at:
 * "{cf_prefix}/Biopsies/t_cf_biopsy_sig_sva-v{ver}.xlsx"
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Biopsies/t_biopsy_cf_table_sva-v{ver}.xlsx")
-t_cf_biopsy_table_sva <- table_reader(input_xlsx, "outcome")
+t_biopsy_xlsx <- glue("{cf_prefix}/Biopsies/t_biopsy_cf_table_sva-v{ver}.xlsx")
+t_cf_biopsy_table_sva <- table_reader(t_biopsy_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Biopsies/t_cf_biopsy_sig_sva-v{ver}.xlsx")
-t_cf_biopsy_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_biopsy_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_biopsy_sig_xlsx <- glue("{cf_prefix}/Biopsies/t_cf_biopsy_sig_sva-v{ver}.xlsx")
+t_cf_biopsy_sig_sva_up <- sig_reader(t_biopsy_sig_xlsx, "outcome")
+t_cf_biopsy_sig_sva_down <- sig_reader(t_biopsy_sig_xlsx, "outcome", "down")
 t_cf_biopsy_sig_sva_both <- rbind.data.frame(t_cf_biopsy_sig_sva_up,
                                              t_cf_biopsy_sig_sva_down)
 ```
@@ -810,6 +909,16 @@ t_cf_biopsy_sig_sva_gp_down
 ## Not nearly as interesting
 ```
 
+#### increased in either
+
+```{r}
+t_cf_biopsy_sig_sva_gp_both <- simple_gprofiler(
+  t_cf_biopsy_sig_sva_both,
+  excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_biopsy_sig_sva_both_gp-v{ver}.xlsx"))
+t_cf_biopsy_sig_sva_gp_both
+enrichplot::dotplot(t_cf_biopsy_sig_sva_gp_both[["BP_enrich"]])
+```
+
 ### clusterprofiler
 
 Again, clusterprofiler version
@@ -834,12 +943,12 @@ t_cf_biopsy_sig_topn_gsea[["GO_outcome_up"]][[1]]
 ## Eosinophils cure/fail
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_table_sva-v{ver}.xlsx")
-t_cf_eosinophil_table_sva <- table_reader(input_xlsx, "outcome")
+t_eosinophil_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_table_sva-v{ver}.xlsx")
+t_cf_eosinophil_table_sva <- table_reader(t_eosinophil_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_sig_sva-v{ver}.xlsx")
-t_cf_eosinophil_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_eosinophil_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_eosinophil_sig_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_cf_sig_sva-v{ver}.xlsx")
+t_cf_eosinophil_sig_sva_up <- sig_reader(t_eosinophil_sig_xlsx, "outcome")
+t_cf_eosinophil_sig_sva_down <- sig_reader(t_eosinophil_sig_xlsx, "outcome", "down")
 t_cf_eosinophil_sig_sva_both <- rbind.data.frame(t_cf_eosinophil_sig_sva_up,
                                                  t_cf_eosinophil_sig_sva_down)
 ```
@@ -956,12 +1065,12 @@ t_cf_eosinophil_sig_topn_gsea[["GO_outcome_up"]][[1]]
 ## Monocytes cure/fail
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_cf_table_sva-v{ver}.xlsx")
-t_cf_monocyte_table_sva <- table_reader(input_xlsx, "outcome")
+t_monocyte_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_cf_table_sva-v{ver}.xlsx")
+t_cf_monocyte_table_sva <- table_reader(t_monocyte_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_cf_sig_sva-v{ver}.xlsx")
-t_cf_monocyte_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_monocyte_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_monocyte_sig_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_cf_sig_sva-v{ver}.xlsx")
+t_cf_monocyte_sig_sva_up <- sig_reader(t_monocyte_sig_xlsx, "outcome")
+t_cf_monocyte_sig_sva_down <- sig_reader(t_monocyte_sig_xlsx, "outcome", "down")
 t_cf_monocyte_sig_sva_both <- rbind.data.frame(t_cf_monocyte_sig_sva_up,
                                                t_cf_monocyte_sig_sva_down)
 ```
@@ -1069,14 +1178,14 @@ t_cf_monocyte_sig_topn_gsea[["GO_outcome_up"]][[1]]
 ## Neutrophils cure/fail
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_table_sva-v{ver}.xlsx")
-t_cf_neutrophil_table_sva <- table_reader(input_xlsx, "outcome")
+t_neutrophil_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_table_sva-v{ver}.xlsx")
+t_cf_neutrophil_table_sva <- table_reader(t_neutrophil_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_sig_sva-v{ver}.xlsx")
-t_cf_neutrophil_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_neutrophil_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_neutrophil_sig_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_cf_sig_sva-v{ver}.xlsx")
+t_cf_neutrophil_sig_sva_up <- sig_reader(t_neutrophil_sig_xlsx, "outcome")
+t_cf_neutrophil_sig_sva_down <- sig_reader(t_neutrophil_sig_xlsx, "outcome", "down")
 t_cf_neutrophil_sig_sva_both <- rbind.data.frame(t_cf_neutrophil_sig_sva_up,
-                                               t_cf_neutrophil_sig_sva_down)
+                                                 t_cf_neutrophil_sig_sva_down)
 ```
 
 ### gProfiler
@@ -1167,12 +1276,12 @@ t_cf_neutrophil_sig_topn_gsea[["GO_outcome_up"]][[1]]
 ## Look at visit 1 and see if anything pops out
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_table_sva-v{ver}.xlsx")
-t_cf_monocyte_v1_table_sva <- table_reader(input_xlsx, "outcome")
+t_monocyte_v1_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_table_sva-v{ver}.xlsx")
+t_cf_monocyte_v1_table_sva <- table_reader(t_monocyte_v1_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_sig_sva-v{ver}.xlsx")
-t_cf_monocyte_v1_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_monocyte_v1_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_monocyte_v1_sig_xlsx <- glue("{cf_prefix}/Monocytes/t_monocyte_v1_cf_sig_sva-v{ver}.xlsx")
+t_cf_monocyte_v1_sig_sva_up <- sig_reader(t_monocyte_v1_sig_xlsx, "outcome")
+t_cf_monocyte_v1_sig_sva_down <- sig_reader(t_monocyte_v1_sig_xlsx, "outcome", "down")
 t_cf_monocyte_v1_sig_sva_both <- rbind.data.frame(t_cf_monocyte_v1_sig_sva_up,
                                                   t_cf_monocyte_v1_sig_sva_down)
 ```
@@ -1182,15 +1291,27 @@ t_cf_monocyte_v1_sig_sva_both <- rbind.data.frame(t_cf_monocyte_v1_sig_sva_up,
 V1: Up: 14 genes; No categories
 V1: Down: 52 genes; 20 GO, 5 TF
 
+#### Increased in cure
+
 ```{r}
 t_cf_monocyte_v1_sig_sva_up_gp <- simple_gprofiler(
   t_cf_monocyte_v1_sig_sva_up,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_up_gp-v{ver}.xlsx"))
 t_cf_monocyte_v1_sig_sva_up_gp
+```
+
+#### Increased in fail
+
+```{r}
 t_cf_monocyte_v1_sig_sva_down_gp <- simple_gprofiler(
   t_cf_monocyte_v1_sig_sva_down,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_down_gp-v{ver}.xlsx"))
 t_cf_monocyte_v1_sig_sva_down_gp
+```
+
+#### Increased in either
+
+```{r}
 t_cf_monocyte_v1_sig_sva_both_gp <- simple_gprofiler(
   t_cf_monocyte_v1_sig_sva_both,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_down_gp-v{ver}.xlsx"))
@@ -1213,27 +1334,39 @@ t_cf_monocyte_v1_topn_gsea[["GO_outcome_up"]][[1]]
 ### Neutrophils v1
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_table_sva-v{ver}.xlsx")
-t_cf_neutrophil_v1_table_sva <- table_reader(input_xlsx, "outcome")
+t_neutrophil_v1_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_table_sva-v{ver}.xlsx")
+t_cf_neutrophil_v1_table_sva <- table_reader(t_neutrophil_v1_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_sig_sva-v{ver}.xlsx")
-t_cf_neutrophil_v1_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_neutrophil_v1_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_neutrophil_v1_sig_xlsx <- glue("{cf_prefix}/Neutrophils/t_neutrophil_v1_cf_sig_sva-v{ver}.xlsx")
+t_cf_neutrophil_v1_sig_sva_up <- sig_reader(t_neutrophil_v1_sig_xlsx, "outcome")
+t_cf_neutrophil_v1_sig_sva_down <- sig_reader(t_neutrophil_v1_sig_xlsx, "outcome", "down")
 t_cf_neutrophil_v1_sig_sva_both <- rbind.data.frame(t_cf_neutrophil_v1_sig_sva_up,
-                                                  t_cf_neutrophil_v1_sig_sva_down)
+                                                    t_cf_neutrophil_v1_sig_sva_down)
 ```
 
 ### Gene Set Enrichment: gProfiler Neutrophils by visit, V1
+
+#### Increased in cure
 
 ```{r}
 t_cf_neutrophil_v1_sig_sva_up_gp <- simple_gprofiler(
   t_cf_neutrophil_v1_sig_sva_up,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_up_gp-v{ver}.xlsx"))
 t_cf_neutrophil_v1_sig_sva_up_gp
+```
+
+#### Increased in fail
+
+```{r}
 t_cf_neutrophil_v1_sig_sva_down_gp <- simple_gprofiler(
   t_cf_neutrophil_v1_sig_sva_down,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_down_gp-v{ver}.xlsx"))
 t_cf_neutrophil_v1_sig_sva_down_gp
+```
+
+#### Increased in either
+
+```{r}
 t_cf_neutrophil_v1_sig_sva_both_gp <- simple_gprofiler(
   t_cf_neutrophil_v1_sig_sva_both,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_neutrophil_down_gp-v{ver}.xlsx"))
@@ -1254,27 +1387,39 @@ t_cf_neutrophil_v1_topn_gsea[["GO_outcome_up"]][[1]]
 ### Eosinophils v1
 
 ```{r}
-input_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_table_sva-v{ver}.xlsx")
-t_cf_eosinophil_v1_table_sva <- table_reader(input_xlsx, "outcome")
+t_eosinophil_v1_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_table_sva-v{ver}.xlsx")
+t_cf_eosinophil_v1_table_sva <- table_reader(t_eosinophil_v1_xlsx, "outcome")
 
-input_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_sig_sva-v{ver}.xlsx")
-t_cf_eosinophil_v1_sig_sva_up <- sig_reader(input_xlsx, "outcome")
-t_cf_eosinophil_v1_sig_sva_down <- sig_reader(input_xlsx, "outcome", "down")
+t_eosinophil_v1_sig_xlsx <- glue("{cf_prefix}/Eosinophils/t_eosinophil_v1_cf_sig_sva-v{ver}.xlsx")
+t_cf_eosinophil_v1_sig_sva_up <- sig_reader(t_eosinophil_v1_sig_xlsx, "outcome")
+t_cf_eosinophil_v1_sig_sva_down <- sig_reader(t_eosinophil_v1_sig_xlsx, "outcome", "down")
 t_cf_eosinophil_v1_sig_sva_both <- rbind.data.frame(t_cf_eosinophil_v1_sig_sva_up,
-                                                  t_cf_eosinophil_v1_sig_sva_down)
+                                                    t_cf_eosinophil_v1_sig_sva_down)
 ```
 
 ### Gene Set Enrichment: gProfiler Eosinophils by visit, V1
+
+#### Increased in cure
 
 ```{r}
 t_cf_eosinophil_v1_sig_sva_up_gp <- simple_gprofiler(
   t_cf_eosinophil_v1_sig_sva_up,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_eosinophil_up_gp-v{ver}.xlsx"))
 t_cf_eosinophil_v1_sig_sva_up_gp
+```
+
+#### Increased in fail
+
+```{r}
 t_cf_eosinophil_v1_sig_sva_down_gp <- simple_gprofiler(
   t_cf_eosinophil_v1_sig_sva_down,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_eosinophil_down_gp-v{ver}.xlsx"))
 t_cf_eosinophil_v1_sig_sva_down_gp
+```
+
+#### Increased in either
+
+```{r}
 t_cf_eosinophil_v1_sig_sva_both_gp <- simple_gprofiler(
   t_cf_eosinophil_v1_sig_sva_both,
   excel = glue("{xlsx_prefix}/Gene_Set_Enrichment/t_cf_eosinophil_down_gp-v{ver}.xlsx"))
@@ -1290,6 +1435,263 @@ t_cf_eosinophil_v1_sig_sva_up_cp <- simple_cprofiler(t_cf_eosinophil_v1_sig_sva_
 enrichplot::dotplot(t_cf_eosinophil_v1_sig_sva_up_cp[["enrich_objects"]][["BP_all"]])
 t_cf_eosinophil_v1_topn_gsea <- plot_topn_gsea(t_cf_eosinophil_v1_sig_sva_up_cp)
 t_cf_eosinophil_v1_topn_gsea[["GO_outcome_up"]][[1]]
+```
+
+# Repeat some of this for the mixed linear model results
+
+Speaking with Maria Adelaida, it sounds like the most appropriate set
+to try for now is |logFC| >= 0.58 and p <= 0.05.  I wrote out the
+dream results in a simpler and less fun way than everything else.
+
+## All celltypes
+
+### Collect the gene sets
+
+```{r}
+mixed_all_tbl <- table_reader(
+  glue("excel/mixed_all_celltypes_nobiop_table-v{ver}.xlsx"),
+  sheet = "failure_vs_cure")
+all_sig_up_idx <- mixed_all_tbl[["logfc"]] >= 0.58 &
+  mixed_all_tbl[["p_value"]] <= 0.05
+all_sig_down_idx <- mixed_all_tbl[["logfc"]] <= -0.58 &
+  mixed_all_tbl[["p_value"]] <= 0.05
+
+all_up_genes <- rownames(mixed_all_tbl)[all_sig_up_idx]
+all_down_genes <- rownames(mixed_all_tbl)[all_sig_down_idx]
+all_both_genes <- c(all_up_genes, all_down_genes)
+```
+
+### Genes increased in cure
+
+```{r}
+t_dream_all_up_gp <- simple_gprofiler(
+  all_up_genes,
+  excel = glue("excel/dream_all_up_gp-v{ver}.xlsx"))
+all_up_termsim <- enrichplot::pairwise_termsim(t_dream_all_up_gp[["BP_enrich"]])
+all_up_treeplot <- sm(treeplot(all_up_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_all_up_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+all_up_treeplot
+dev.off()
+all_up_treeplot
+```
+
+### Genes increased in fail
+
+```{r}
+t_dream_all_down_gp <- simple_gprofiler(
+  all_down_genes,
+  excel = glue("excel/dream_all_down_gp-v{ver}.xlsx"))
+all_down_termsim <- enrichplot::pairwise_termsim(t_dream_all_down_gp[["BP_enrich"]])
+all_down_treeplot <- sm(treeplot(all_down_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_all_down_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+all_down_treeplot
+dev.off()
+all_down_treeplot
+```
+
+### Increased in either
+
+```{r}
+t_dream_all_both_gp <- simple_gprofiler(
+  all_both_genes,
+  excel = glue("excel/dream_all_both_gp-v{ver}.xlsx"))
+all_both_termsim <- enrichplot::pairwise_termsim(t_dream_all_both_gp[["BP_enrich"]])
+all_both_treeplot <- sm(treeplot(all_both_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_all_both_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+all_both_treeplot
+dev.off()
+all_both_treeplot
+```
+
+## Monocytes
+
+### Collecting gene sets
+
+```{r}
+mixed_monocyte_tbl <- table_reader(
+  glue("excel/mixed_monocyte_table-v{ver}.xlsx"),
+  sheet = "failure_vs_cure")
+monocyte_sig_up_idx <- mixed_monocyte_tbl[["logfc"]] >= 0.58 &
+  mixed_monocyte_tbl[["p_value"]] <= 0.05
+monocyte_sig_down_idx <- mixed_monocyte_tbl[["logfc"]] <= -0.58 &
+  mixed_monocyte_tbl[["p_value"]] <= 0.05
+
+monocyte_up_genes <- rownames(mixed_monocyte_tbl)[monocyte_sig_up_idx]
+monocyte_down_genes <- rownames(mixed_monocyte_tbl)[monocyte_sig_down_idx]
+monocyte_both_genes <- c(monocyte_up_genes, monocyte_down_genes)
+```
+
+### Increased in fail
+
+```{r}
+t_dream_monocyte_up_gp <- simple_gprofiler(
+  monocyte_up_genes,
+  excel = glue("excel/dream_monocyte_up_gp-v{ver}.xlsx"))
+monocyte_up_termsim <- enrichplot::pairwise_termsim(t_dream_monocyte_up_gp[["BP_enrich"]])
+monocyte_up_treeplot <- sm(treeplot(monocyte_up_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_monocyte_up_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+monocyte_up_treeplot
+dev.off()
+monocyte_up_treeplot
+```
+
+### Increased in cure
+
+```{r}
+t_dream_monocyte_down_gp <- simple_gprofiler(
+  monocyte_down_genes,
+  excel = glue("excel/dream_monocyte_down_gp-v{ver}.xlsx"))
+monocyte_down_termsim <- enrichplot::pairwise_termsim(t_dream_monocyte_down_gp[["BP_enrich"]])
+monocyte_down_treeplot <- sm(treeplot(monocyte_down_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_monocyte_down_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+monocyte_down_treeplot
+dev.off()
+monocyte_down_treeplot
+```
+
+### Increased in either
+
+```{r}
+t_dream_monocyte_both_gp <- simple_gprofiler(
+  monocyte_both_genes,
+  excel = glue("excel/dream_monocyte_both_gp-v{ver}.xlsx"))
+monocyte_both_termsim <- enrichplot::pairwise_termsim(t_dream_monocyte_both_gp[["BP_enrich"]])
+monocyte_both_treeplot <- sm(treeplot(monocyte_both_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_monocyte_both_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+monocyte_both_treeplot
+dev.off()
+monocyte_both_treeplot
+```
+
+## Neutrophils
+
+### Collecting gene sets
+
+```{r}
+neutrophil_tbl <- table_reader(
+  glue("excel/mixed_neutrophil_table-v{ver}.xlsx"),
+  sheet = "failure_vs_cure")
+neutrophil_sig_up_idx <- neutrophil_tbl[["logfc"]] >= 0.58 &
+  neutrophil_tbl[["p_value"]] <= 0.05
+neutrophil_sig_down_idx <- neutrophil_tbl[["logfc"]] <= -0.58 &
+  neutrophil_tbl[["p_value"]] <= 0.05
+
+neutrophil_up_genes <- rownames(neutrophil_tbl)[neutrophil_sig_up_idx]
+neutrophil_down_genes <- rownames(neutrophil_tbl)[neutrophil_sig_down_idx]
+neutrophil_both_genes <- c(neutrophil_up_genes, neutrophil_down_genes)
+
+### Increased in fail
+
+```{r}
+t_dream_neutrophil_up_gp <- simple_gprofiler(
+  neutrophil_up_genes,
+  excel = glue("excel/dream_neutrophil_up_gp-v{ver}.xlsx"))
+neutrophil_up_termsim <- enrichplot::pairwise_termsim(t_dream_neutrophil_up_gp[["BP_enrich"]])
+neutrophil_up_treeplot <- sm(treeplot(neutrophil_up_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_neutrophil_up_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+neutrophil_up_treeplot
+dev.off()
+neutrophil_up_treeplot
+```
+
+### Increased in cure
+
+```{r}
+t_dream_neutrophil_down_gp <- simple_gprofiler(
+  neutrophil_down_genes,
+  excel = glue("excel/dream_neutrophil_down_gp-v{ver}.xlsx"))
+neutrophil_down_termsim <- enrichplot::pairwise_termsim(t_dream_neutrophil_down_gp[["BP_enrich"]])
+neutrophil_down_treeplot <- sm(treeplot(neutrophil_down_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_neutrophil_down_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+neutrophil_down_treeplot
+dev.off()
+neutrophil_down_treeplot
+```
+
+### Increased in either
+
+```{r}
+t_dream_neutrophil_both_gp <- simple_gprofiler(
+  neutrophil_both_genes,
+  excel = glue("excel/dream_neutrophil_both_gp-v{ver}.xlsx"))
+neutrophil_both_termsim <- enrichplot::pairwise_termsim(t_dream_neutrophil_both_gp[["BP_enrich"]])
+neutrophil_both_treeplot <- sm(treeplot(neutrophil_both_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_neutrophil_both_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+neutrophil_both_treeplot
+dev.off()
+neutrophil_both_treeplot
+```
+
+## Eosinophils
+
+### Collect gene sets
+
+```{r}
+eosinophil_tbl <- table_reader(
+  glue("excel/mixed_eosinophil_table-v{ver}.xlsx"),
+  sheet = "failure_vs_cure")
+eosinophil_sig_up_idx <- eosinophil_tbl[["logfc"]] >= 0.58 &
+  eosinophil_tbl[["p_value"]] <= 0.05
+eosinophil_sig_down_idx <- eosinophil_tbl[["logfc"]] <= -0.58 &
+  eosinophil_tbl[["p_value"]] <= 0.05
+
+eosinophil_up_genes <- rownames(eosinophil_tbl)[eosinophil_sig_up_idx]
+eosinophil_down_genes <- rownames(eosinophil_tbl)[eosinophil_sig_down_idx]
+eosinophil_both_genes <- c(eosinophil_up_genes, eosinophil_down_genes)
+```
+
+### Increased in fail
+
+```{r}
+t_dream_eosinophil_up_gp <- simple_gprofiler(
+  eosinophil_up_genes,
+  excel = glue("excel/dream_eosinophil_up_gp-v{ver}.xlsx"))
+eosinophil_up_termsim <- enrichplot::pairwise_termsim(t_dream_eosinophil_up_gp[["BP_enrich"]])
+eosinophil_up_treeplot <- sm(treeplot(eosinophil_up_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_eosinophil_up_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+eosinophil_up_treeplot
+dev.off()
+eosinophil_up_treeplot
+```
+
+### Increased in cure
+
+```{r}
+t_dream_eosinophil_down_gp <- simple_gprofiler(
+  eosinophil_down_genes,
+  excel = glue("excel/dream_eosinophil_down_gp-v{ver}.xlsx"))
+eosinophil_down_termsim <- enrichplot::pairwise_termsim(t_dream_eosinophil_down_gp[["BP_enrich"]])
+eosinophil_down_treeplot <- sm(treeplot(eosinophil_down_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_eosinophil_down_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+eosinophil_down_treeplot
+dev.off()
+eosinophil_down_treeplot
+```
+
+### Increased in either
+
+```{r}
+t_dream_eosinophil_both_gp <- simple_gprofiler(
+  eosinophil_both_genes,
+  excel = glue("excel/dream_eosinophil_both_gp-v{ver}.xlsx"))
+eosinophil_both_termsim <- enrichplot::pairwise_termsim(t_dream_eosinophil_both_gp[["BP_enrich"]])
+eosinophil_both_treeplot <- sm(treeplot(eosinophil_both_termsim, label_format = wrap_width))
+pp(file = glue("images/overrepresentation/t_dream_eosinophil_both_gp_go-v{ver}.pdf"),
+   height = treeplot_height, width = treeplot_width)
+eosinophil_both_treeplot
+dev.off()
+eosinophil_both_treeplot
 ```
 
 # Bibliography

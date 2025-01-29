@@ -56,8 +56,8 @@ rundate <- format(Sys.Date(), format = "%Y%m%d")
 
 rmd_file <- "01datasets.Rmd"
 savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
-methods <- list("basic" = TRUE, "deseq" = TRUE, "dream" = FALSE,
-                "ebseq" = FALSE, "edger" = TRUE, "limma" = TRUE, "noiseq" = TRUE)
+methods <- list("basic" = TRUE, "deseq" = TRUE, "dream" = TRUE,
+                "ebseq" = TRUE, "edger" = TRUE, "limma" = TRUE, "noiseq" = TRUE)
 data_structures <- c("methods")
 ```
 
@@ -259,7 +259,7 @@ wanted_columns <- c("gid", "ensembl_transcript_id", "version", "transcript_versi
 all_lp_annot <- all_lp_annot[, wanted_columns]
 colnames(all_lp_annot) <- colnames(hs_tx_annot)
 
-hslp_annot <- rbind(hs_tx_annot, all_lp_annot)
+hslp_annot <- rbind.data.frame(hs_tx_annot, all_lp_annot)
 ```
 
 Finally, dump the current gene ontology data from the
@@ -373,7 +373,7 @@ sanitize_columns <- c("visitnumber", "finaloutcome", "donor",
                       "typeofcells", "clinicalpresentation", "drug",
                       "condition", "batch", "clinic")
 hs_expt <- create_expt(samplesheet,
-                       file_column = "hg38100hisatfile",
+                       file_column = "hg38_100hisatfile",
                        savefile = glue("rda/tmrc3_hs_expt_all_raw-v{ver}.rda"),
                        gene_info = hs_annot) %>%
   subset_genes(column = "gene_biotype", method = "keep",
@@ -387,9 +387,14 @@ hs_expt <- create_expt(samplesheet,
   subset_expt(subset = "clinicalpresentation!='h'")
 data_structures <- c(data_structures, "hs_expt")
 
+## Let us change the visitnumber from 1,2,3 to v1,v2,v3
+pData(hs_expt)[["visitnumber"]] <- as.character(pData(hs_expt)[["visitnumber"]])
+pData(hs_expt)[["visitnumber"]] <- paste0("v", pData(hs_expt)[["visitnumber"]])
+pData(hs_expt)[["visitnumber"]] <- as.factor(pData(hs_expt)[["visitnumber"]])
+
 ## The following should make visit 1 the largest if one uses that column as a size factor when plotting.
 meta <- pData(hs_expt) %>%
-  mutate(visitnumber = fct_relevel(visitnumber, c("3", "2", "1")))
+  mutate(visitnumber = fct_relevel(visitnumber, c("v3", "v2", "v1")))
 start_order <- rownames(meta)
 ## Incorporate the identified strains
 identified <- openxlsx::read.xlsx(species_identities)
@@ -399,11 +404,13 @@ identified <- identified[, c("Patient", "Species")]
 colnames(identified) <- c("Patient", "ParasiteSpecies")
 meta <- merge(meta, identified, by.x = "tubelabelorigin", by.y = "Patient", all.x = TRUE)
 meta <- sanitize_metadata(meta, columns = "ParasiteSpecies", spaces = TRUE)
+meta[["donor"]] <- gsub(pattern = "^su", replacement = "d", x = meta[["tubelabelorigin"]])
 ## Note that the merge removes the rownames and maybe changes sample order.
 rownames(meta) <- meta[["tmrcidentifier"]]
 meta <- meta[start_order, ]
 
 pData(hs_expt) <- meta
+hs_expt <- set_expt_batches(hs_expt, fact = "visitnumber")
 save(list = "hs_expt", file = glue("rda/tmrc3_hs_expt_all_sanitized-v{ver}.rda"))
 ```
 
@@ -466,16 +473,19 @@ demographics, this will be used to add the various columns across each
 person's samples.  I guess I could have done this with merge(all.x =
 TRUE, all.y = TRUE)
 
+Some changes I made to enforce more consistent date management are
+causing problems.  Notably, some columns are now getting set to the
+format 'Date', which cannot have strings like 'undefined'.
+
 ```{r}
 hs_pd <- pData(hs_expt)
 hs_pd[["join"]] <- hs_pd[["tubelabelorigin"]]
 
 hs_pd_demographics <- plyr::join(hs_pd, hs_demographics, by = "join")
-hs_pd_demographics[["join"]] <- NULL
 rownames(hs_pd_demographics) <- rownames(hs_pd)
 na_idx <- is.na(hs_pd_demographics)
 sum(na_idx)
-hs_pd_demographics[na_idx] <- "undefined"
+hs_pd_demographics[na_idx] <- ""
 
 data_structures <- c(data_structures, "hs_pd_demographics")
 ```
@@ -524,7 +534,7 @@ pData(hs_expt)[["etnia_sex"]] <- as.factor(pData(hs_expt)[["etnia_sex"]])
 table(pData(hs_expt)[["etnia_sex"]])
 
 ## Set a factor of samples which are visit 1 vs. 2/3.
-v1_samples <- pData(hs_expt)[["visitnumber"]] == "1"
+v1_samples <- pData(hs_expt)[["visitnumber"]] == "v1"
 pData(hs_expt)[v1_samples, "visitbipart"] <- "v1"
 pData(hs_expt)[!v1_samples, "visitbipart"] <- "vother"
 table(pData(hs_expt)[["visitbipart"]])
@@ -938,15 +948,15 @@ both clinics (tc) and a specific visit (v1/v2/v3).  The rpkm/cpm
 values will be written immediately thereafter.
 
 ```{r}
-tcv1_samples <- subset_expt(tc_valid, subset = "visitnumber=='1'")
+tcv1_samples <- subset_expt(tc_valid, subset = "visitnumber=='v1'")
 save(list = "tcv1_samples", file = glue("rda/tmrc3_tcv1_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv1_samples")
 
-tcv2_samples <- subset_expt(tc_valid, subset = "visitnumber=='2'")
+tcv2_samples <- subset_expt(tc_valid, subset = "visitnumber=='v2'")
 save(list = "tcv2_samples", file = glue("rda/tmrc3_tcv2_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv2_samples")
 
-tcv3_samples <- subset_expt(tc_valid, subset = "visitnumber=='3'")
+tcv3_samples <- subset_expt(tc_valid, subset = "visitnumber=='v3'")
 save(list = "tcv3_samples", file = glue("rda/tmrc3_tcv3_samples-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv3_samples")
 ```
@@ -1017,15 +1027,41 @@ tc_monocytes <- set_expt_conditions(
 save(list = "tc_monocytes", file = glue("rda/tmrc3_tc_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tc_monocytes")
 
-tcv1_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='1'")
+tcv1_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='v1'")
 save(list = "tcv1_monocytes", file = glue("rda/tmrc3_tcv1_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv1_monocytes")
-tcv2_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='2'")
+tcv2_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='v2'")
 save(list = "tcv2_monocytes", file = glue("rda/tmrc3_tcv2_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv2_monocytes")
-tcv3_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='3'")
+tcv3_monocytes <- subset_expt(tc_monocytes, subset = "visitnumber=='v3'")
 save(list = "tcv3_monocytes", file = glue("rda/tmrc3_tcv3_monocytes-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv3_monocytes")
+```
+
+## Subset: Eosinophils
+
+... and the Eosinophils.  These are noteworthy because they have fewer
+fails than some other cohorts.
+
+```{r}
+clinic_cf <- paste0(pData(tc_eosinophils)[["clinic"]], "_",
+                    pData(tc_eosinophils)[["finaloutcome"]])
+table(clinic_cf)
+tc_eosinophils <- set_expt_conditions(
+  tc_eosinophils, fact = clinic_cf, colors = color_choices[["clinic_cf"]]) %>%
+  set_expt_batches(fact = "visitnumber")
+save(list = "tc_eosinophils", file = glue("rda/tmrc3_tc_eosinophils-v{ver}.rda"))
+data_structures <- c(data_structures, "tc_eosinophils")
+
+tcv1_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='v1'")
+save(list = "tcv1_eosinophils", file = glue("rda/tmrc3_tcv1_eosinophils-v{ver}.rda"))
+data_structures <- c(data_structures, "tcv1_eosinophils")
+tcv2_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='v2'")
+save(list = "tcv2_eosinophils", file = glue("rda/tmrc3_tcv2_eosinophils-v{ver}.rda"))
+data_structures <- c(data_structures, "tcv2_eosinophils")
+tcv3_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='v3'")
+save(list = "tcv3_eosinophils", file = glue("rda/tmrc3_tcv3_eosinophils-v{ver}.rda"))
+data_structures <- c(data_structures, "tcv3_eosinophils")
 ```
 
 ## Subset: Biopsies
@@ -1052,32 +1088,6 @@ save(list = "tc_biopsies", file = glue("rda/tmrc3_tc_biopsies-v{ver}.rda"))
 data_structures <- c(data_structures, "tc_biopsies")
 ```
 
-## Subset: Eosinophils
-
-... and the Eosinophils.  These are noteworthy because they have fewer
-fails than some other cohorts.
-
-```{r}
-clinic_cf <- paste0(pData(tc_eosinophils)[["clinic"]], "_",
-                    pData(tc_eosinophils)[["finaloutcome"]])
-table(clinic_cf)
-tc_eosinophils <- set_expt_conditions(
-  tc_eosinophils, fact = clinic_cf, colors = color_choices[["clinic_cf"]]) %>%
-  set_expt_batches(fact = "visitnumber")
-save(list = "tc_eosinophils", file = glue("rda/tmrc3_tc_eosinophils-v{ver}.rda"))
-data_structures <- c(data_structures, "tc_eosinophils")
-
-tcv1_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='1'")
-save(list = "tcv1_eosinophils", file = glue("rda/tmrc3_tcv1_eosinophils-v{ver}.rda"))
-data_structures <- c(data_structures, "tcv1_eosinophils")
-tcv2_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='2'")
-save(list = "tcv2_eosinophils", file = glue("rda/tmrc3_tcv2_eosinophils-v{ver}.rda"))
-data_structures <- c(data_structures, "tcv2_eosinophils")
-tcv3_eosinophils <- subset_expt(tc_eosinophils, subset = "visitnumber=='3'")
-save(list = "tcv3_eosinophils", file = glue("rda/tmrc3_tcv3_eosinophils-v{ver}.rda"))
-data_structures <- c(data_structures, "tcv3_eosinophils")
-```
-
 ## Subset: Neutrophils by clinic
 
 Followed by the Neutrophils...
@@ -1092,13 +1102,13 @@ tc_neutrophils <- set_expt_conditions(
 save(list = "tc_neutrophils", file = glue("rda/tmrc3_tc_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tc_neutrophils")
 
-tcv1_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='1'")
+tcv1_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='v1'")
 save(list = "tcv1_neutrophils", file = glue("rda/tmrc3_tcv1_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv1_neutrophils")
-tcv2_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='2'")
+tcv2_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='v2'")
 save(list = "tcv2_neutrophils", file = glue("rda/tmrc3_tcv2_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv2_neutrophils")
-tcv3_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='3'")
+tcv3_neutrophils <- subset_expt(tc_neutrophils, subset = "visitnumber=='v3'")
 save(list = "tcv3_neutrophils", file = glue("rda/tmrc3_tcv3_neutrophils-v{ver}.rda"))
 data_structures <- c(data_structures, "tcv3_neutrophils")
 ```
@@ -1255,10 +1265,10 @@ length(unique(f_meta[["Patient_ID"]]))
 
 ```{r}
 t_cure <- subset_expt(t_clinical, subset = "finaloutcome=='cure'")
-table(pData(t_cure)$visitnumber)
+table(pData(t_cure)[["visitnumber"]])
 
 t_fail <- subset_expt(t_clinical, subset = "finaloutcome=='failure'")
-table(pData(t_fail)$visitnumber)
+table(pData(t_fail)[["visitnumber"]])
 ```
 
 ## Subset: Create Tumaco-only and cell-type specific data
@@ -1744,7 +1754,6 @@ write.csv(x = as.data.frame(exprs(rpkm_data)),
 I added a few columns to the gene annotations reflecting the
 variance/stdev/mean expression of each gene.  This really highlights
 the extraordinary degree to which genes are changing in the data...
-
 
 ```{r}
 top_expt <- normalize_expt(c_clinical_cpm_variance, filter = TRUE) %>%
@@ -2244,7 +2253,7 @@ data_structures <- c(data_structures, "tc_visit")
 
 tc_v1vs <- tc_visit
 pData(tc_v1vs)[["visit"]] <- as.character(pData(tc_v1vs)[["visitnumber"]])
-v1_samples <- pData(tc_v1vs)[["visit"]] == "1"
+v1_samples <- pData(tc_v1vs)[["visit"]] == "v1"
 pData(tc_v1vs)[v1_samples, "visit"] <- "first"
 pData(tc_v1vs)[!v1_samples, "visit"] <- "later"
 pData(tc_v1vs)[["visit"]] <- as.factor(pData(tc_v1vs)[["visit"]])
@@ -2275,7 +2284,7 @@ written <- write_xlsx(
 ### Visit cure/fail contrasts
 
 ```{r}
-visit_cf_expt_factor <- paste0("v", pData(t_clinical)[["visitnumber"]],
+visit_cf_expt_factor <- paste0(pData(t_clinical)[["visitnumber"]], "_",
                                pData(t_clinical)[["finaloutcome"]])
 t_visitcf <- set_expt_conditions(t_clinical, fact = visit_cf_expt_factor)
 save(list = "t_visitcf", file = glue("rda/tmrc3_t_visitcf-v{ver}.rda"))
@@ -2318,7 +2327,7 @@ written <- write_xlsx(
 ### Visit cure/fail contrasts
 
 ```{r}
-visit_cf_expt_factor <- paste0("v", pData(c_clinical)[["visitnumber"]],
+visit_cf_expt_factor <- paste0(pData(c_clinical)[["visitnumber"]], "_",
                                pData(c_clinical)[["finaloutcome"]])
 c_visitcf <- set_expt_conditions(c_clinical, fact = visit_cf_expt_factor)
 save(list = "c_visitcf", file = glue("rda/tmrc3_c_visitcf-v{ver}.rda"))
@@ -2540,8 +2549,8 @@ scott_metadata <- as.data.frame(readr::read_tsv("sample_sheets/scott_capsule_stu
 new_meta <- cbind.data.frame(new_sample_sheet[["new_meta"]], scott_metadata)
 
 external_cf <- create_expt(new_meta,
-                           gene_info = hs_annot, file_column = "hisatcounttable") %>%
-  set_expt_conditions(fact = "treatmentoutcome") %>%
+                           gene_info = hs_annot, file_column = "hisat_count_table") %>%
+  set_expt_conditions(fact = "treatment_outcome") %>%
     set_expt_batches(fact = "sex") %>%
     subset_expt(subset = "condition!='na'")
 pData(external_cf)[["ParasiteSpecies"]] <- "lvbraziliensis"
@@ -2551,7 +2560,7 @@ data_structures <- c(data_structures, "external_cf")
 biopsy_cf <- set_expt_conditions(tc_biopsies, fact = "finaloutcome")
 pData(biopsy_cf)[["lab"]] <- "Colombia"
 pData(external_cf)[["lab"]] <- "Brazil"
-pData(external_cf)[["finaloutcome"]] <- pData(external_cf)[["treatmentoutcome"]]
+pData(external_cf)[["finaloutcome"]] <- pData(external_cf)[["treatment_outcome"]]
 
 tmrc3_external <- combine_expts(external_cf, biopsy_cf) %>%
   set_expt_conditions(fact = "lab", colors = color_choices[["labs"]]) %>%
@@ -2579,7 +2588,7 @@ confused <- set_expt_conditions(
 
 ## Ethnicity
 
-```{r t_etnia_expt}
+```{r}
 tc_etnia_expt <- set_expt_conditions(
   tc_clinical, fact = "etnia", colors = color_choices[["ethnicity"]])
 save(list = "tc_etnia_expt", file = glue("rda/tmrc3_tc_etnia-v{ver}.rda"))
@@ -2628,14 +2637,14 @@ generally do not call things 'tmrc2/tmrc3/etc' in the container.
 ```{r}
 lp_expt <- create_expt(
   samplesheet,
-  file_column = "lpanamensisv36hisatfile", gene_info = all_lp_annot) %>%
+  file_column = "lpanamensis_v36hisat_file", gene_info = all_lp_annot) %>%
   subset_expt(coverage = 30000) %>%
   subset_expt(nonzero = 3000) %>%
   set_expt_conditions(fact = "typeofcells") %>%
   subset_expt(subset = "clinic!='undefined'") %>%
   sanitize_expt_pData("finaloutcome")
 
-visit_fact <- pData(lp_expt)[["visitnumber"]]
+visit_fact <- paste0("v", pData(lp_expt)[["visitnumber"]])
 batch_na <- is.na(visit_fact)
 visit_fact[batch_na] <- "undefined"
 lp_expt <- set_expt_batches(lp_expt, fact = visit_fact)

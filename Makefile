@@ -15,15 +15,17 @@ CONFIG_FILES = local/etc/*
 ## If your machine has less than ~ 180G ram, you may need to set this to FALSE
 PARALLEL="TRUE"
 DEFAULT_INPUT="00preprocessing.Rmd:01datasets.Rmd:02visualization.Rmd:03differential_expression_both.Rmd:04differential_expression_tumaco.Rmd:05enrichment.Rmd:06lrt_gsva.Rmd:07wgcna.Rmd:08classifier_highvar.Rmd:README.Rmd"
+HPGLTOOLS_COMMIT=""
+##HPGLTOOLS_COMMIT="16c865238fc85fecf514dfedbe23aeedadaed005"
 
 ## Note x,y is multiple binds, a:b binds host:a to container:b
 SINGULARITY_BIND="/sw/local/R/renv_cache"
 
-%.sif: %.yml $(RMD_FILES) $(SETUP_SCRIPTS) $(CONFIG_FILES) $(BIB)
-	touch data/atb.bib
+%.sif: %.yml $(RMD_FILES) $(SETUP_SCRIPTS) $(CONFIG_FILES) 
 	cp local/etc/bashrc_template local/etc/bashrc
 	echo "export PARALLEL=$(PARALLEL)" >> local/etc/bashrc
 	echo "export DEFAULT_INPUT=$(DEFAULT_INPUT)" >> local/etc/bashrc
+	echo "export HPGLTOOLS_COMMIT='$(HPGLTOOLS_COMMIT)'" >> local/etc/bashrc
 	test -f $(BIB) && cp $(BIB) data/atb.bib
 	sudo singularity build -B $(SINGULARITY_BIND) --force $@ $<
 

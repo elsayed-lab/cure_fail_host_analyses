@@ -52,9 +52,9 @@ ggplot2::theme_set(ggplot2::theme_bw(base_size = 12))
 ver <- Sys.getenv("VERSION")
 rundate <- format(Sys.Date(), format = "%Y%m%d")
 
-rmd_file <- "04lrt_gsva.Rmd"
-savefile <- gsub(pattern="\\.Rmd", replace="\\.rda\\.xz", x=rmd_file)
-loaded <- load(file=glue("rda/tmrc3_data_structures-v{ver}.rda"))
+rmd_file <- "06lrt_gsva.Rmd"
+savefile <- gsub(pattern = "\\.Rmd", replace = "\\.rda\\.xz", x = rmd_file)
+loaded <- load(file = glue("rda/tmrc3_data_structures-v{ver}.rda"))
 ```
 
 # Introduction
@@ -150,6 +150,56 @@ deseq_lrt_df[["Row.names"]] <- NULL
 written <- write_xlsx(data=deseq_lrt_df,
                       excel=glue("excel/lrt_clinical_celltype-v{ver}.xlsx"))
 ```
+
+## Using LRT to examine donor effects
+
+Suggestion from Neal: Get residual deviance of donor+visit, visit,
+donor.
+
+Oh oh, we are actually comparing the results of these models:
+Define terms:  exprs: expression matrix with rows=genes, column=samples
+This is synonymous with 'outcome'.
+Conversely, finaloutcome is the term we wish to explain via the
+metadata and expression matrix.
+
+* exprs ~ visit, data = meta+exprs
+* exprs ~ donor, data = meta+exprs (this does not support the argument)
+* exprs ~ donor + visit (caveat regarding donors with <=2, ergo will
+  need to restrict sample set for other contrasts as well.)
+
+1.  Extract from deseq/limma/edger the residual deviance folowing the fit
+of each model.  In the case of DESeq2, this may be acquired via a LRT
+test.
+2.  This is expected to return the deviance between the various models
+    applied.
+3.  ok I think I get it, invoke deseq_lrt with donor and visit+donor
+    and examine the results.
+
+### Setting up
+
+I tested a few models and it seems that the LRT test accepts a model
+of ~visit+donor.
+
+```{r}
+lrt_eo_vd <- deseq_lrt(t_eosinophils, transform = "vst",
+                       interactor_column = "visitnumber",
+                       interest_column = "donor", interaction = FALSE)
+## Oh wait, I think that is the opposite of our goal, lets do the other way around.
+
+## This creates a dataset from ~ donor + visitnumber
+## and performs the LRT with ~ visitnumber
+lrt_eo_dv <- deseq_lrt(t_eosinophils, transform = "vst",
+                       interactor_column = "donor",
+                       interest_column = "visitnumber", interaction = FALSE)
+
+```
+
+Let us consider the rank of the eosinophil data.  We are hypothesizing
+that each donor must have >= 2 samples for ~ donor + finaloutcome to
+work.  Thus I performed table() on the experimental design and see
+that donor 2052 is unsuitable.
+
+
 
 # GSVA
 

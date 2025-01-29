@@ -214,8 +214,6 @@ be quite low.
 ```{r}
 biopsy_prepost <- plot_libsize_prepost(tc_biopsies)
 biopsy_prepost
-#biopsy_prepost$count_plot
-#biopsy_prepost$lowgene_plot
 ## Minimum number of biopsy genes: ~ 14,000
 
 plot_libsize(tc_eosinophils)
@@ -524,9 +522,6 @@ a linear model to extract the f/r values used for the forest plot and
 performs a series (or one) stepwise regression.  In the following I
 will repeat that process using a logistic regression model.
 
-I bet I wrote it down somewhere above, but wtf is up with the prefix
-tdfvscea?
-
 Also, it may be because I have been messing around with wanted_mtrx,
 but it should be a set of factors, now numeric.
 
@@ -698,6 +693,40 @@ t_se_extracted_regression[["forest"]]
 t_se_extracted_regression[["summary"]]
 ```
 
+## Repeat but considering the sample metadata instead of demographics
+
+### Only eosinophils
+
+```{r}
+t_sample_df <- pData(t_eosinophils)
+table(t_sample_df[["donor"]])
+eo_test <- subset_expt(t_eosinophils, subset = "donor!='d2052'")
+t_sample_df <- pData(eo_test)
+t_log_regression_demographics <- extract_logistic_regression(
+  t_sample_df, query = "visitnumber", factors = c("donor"))
+pp(file = glue("figures/t_multivariable_logistic_regression.svg"))
+t_log_regression_demographics[["forest"]]
+dev.off()
+t_log_regression_demographics[["forest"]]
+t_log_regression_demographics[["summary"]]
+
+
+t_sample_df <- pData(t_monocytes)
+table(t_sample_df[["donor"]])
+mo_test <- subset_expt(t_monocytes, subset = "donor!='d2161'") %>%
+  subset_expt(subset = "donor!='d2188'") %>%
+  subset_expt(subset = "donor!='d2201'")
+t_sample_df <- pData(mo_test)
+t_log_regression_demographics <- extract_logistic_regression(
+  t_sample_df, query = "visitnumber", factors = c("donor"))
+pp(file = glue("figures/t_multivariable_logistic_regression.svg"))
+t_log_regression_demographics[["forest"]]
+dev.off()
+t_log_regression_demographics[["forest"]]
+t_log_regression_demographics[["summary"]]
+## No point in doing the neutrophils because they are the same samples.
+```
+
 # Global views of all cell types
 
 Now that those 'global' metrics are out of the way, lets look at some
@@ -726,7 +755,7 @@ dev.off()
 tc_pca
 tc_pca <- plot_pca(tc_norm, plot_labels = FALSE,
                    plot_title = "PCA - Cell type")
-pp(file = "figures/tc_pca_nosize.pdf")
+pp(file = "figures/tc_pca_nosize.svg")
 tc_pca
 dev.off()
 tc_pca
@@ -1107,9 +1136,9 @@ tc_eosinophils_nb <- normalize_expt(tc_eosinophils, transform = "log2",
                                     convert = "cpm", batch = "svaseq", filter = TRUE)
 tc_eosinophils_nb_pca <- plot_pca(tc_eosinophils_nb, plot_labels = FALSE)
 pp(file = "figures/figure3B_eosinophils.svg")
-tc_eosinophils_nb_pca$plot
+tc_eosinophils_nb_pca[["plot"]]
 dev.off()
-tc_eosinophils_nb_pca$plot
+tc_eosinophils_nb_pca[["plot"]]
 ```
 
 ## Monocytes by clinic
@@ -1134,9 +1163,9 @@ tc_monocytes_nb <- normalize_expt(tc_monocytes, transform = "log2",
                                   convert = "cpm", batch = "svaseq", filter = TRUE)
 tc_monocytes_nb_pca <- plot_pca(tc_monocytes_nb, plot_labels = FALSE)
 pp(file = "figures/figure3C_monocytes.svg")
-tc_monocytes_nb_pca$plot
+tc_monocytes_nb_pca[["plot"]]
 dev.off()
-tc_monocytes_nb_pca$plot
+tc_monocytes_nb_pca[["plot"]]
 ```
 
 ## Neutrophils by clinic
@@ -1159,9 +1188,9 @@ tc_neutrophils_nb <- normalize_expt(tc_neutrophils, transform = "log2",
                                     convert = "cpm", batch = "svaseq", filter = TRUE)
 tc_neutrophils_nb_pca <- plot_pca(tc_neutrophils_nb, plot_labels = FALSE)
 pp(file = "figures/figure3D_neutrophils.svg")
-tc_neutrophils_nb_pca$plot
+tc_neutrophils_nb_pca[["plot"]]
 dev.off()
-tc_neutrophils_nb_pca$plot
+tc_neutrophils_nb_pca[["plot"]]
 ```
 
 ## PCA: Compare clinics
@@ -1185,7 +1214,7 @@ tc_clinic_type_nb <- normalize_expt(tc_clinic_type, transform = "log2", convert 
 tc_clinic_type_nb_pca <- plot_pca(tc_clinic_type_nb)
 tc_clinic_type_nb_pca
 pp(file = "figures/figure3a_all_samples.svg")
-tc_clinic_type_nb_pca$plot
+tc_clinic_type_nb_pca[["plot"]]
 dev.off()
 ```
 
@@ -1201,21 +1230,20 @@ clinical_pca
 tc_clinical_nb <- normalize_expt(tc_clinical, filter = "simple", transform = "log2",
                                  batch = "svaseq", convert = "cpm")
 tc_clinical_nb_pca <- plot_pca(tc_clinical_nb)
-tc_clinical_nb_pca$plot
+tc_clinical_nb_pca[["plot"]]
 
 clinical_pca_info <- pca_information(
     tc_clinical_norm, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells", "finaloutcome",
                    "clinic", "donor"))
-clinical_pca_info$anova_neglogp_heatmap
-clinical_pca_info$pca_plots$PC4_PC7
+clinical_pca_info[["anova_neglogp_heatmap"]]
+clinical_pca_info[["pca_plots"]][["PC4_PC7"]]
 
 clinical_scores <- pca_highscores(tc_clinical_norm)
 clinical_scores[["highest"]][,"Comp.4"]
 
-test_factors <- c("visitnumber", "typeofcells", "finaloutcome",
-                  "clinic", "sex", "etnia")
-clinical_varpart <- simple_varpart(tc_clinical, factors = test_factors)
+fstring <- "~ finaloutcome + visitnumber + typeofcells + clinic + sex + etnia"
+clinical_varpart <- simple_varpart(tc_clinical, fstring = fstring)
 clinical_varpart
 ```
 
@@ -1234,8 +1262,8 @@ first_info <- pca_information(
     first, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-first_info$anova_neglogp_heatmap
-first_info$pca_plots[["PC1_PC2"]]
+first_info[["anova_neglogp_heatmap"]]
+first_info[["pca_plots"]][["PC1_PC2"]]
 
 second <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
                          filter = TRUE, batch = "svaseq", surrogates = 2) %>%
@@ -1244,7 +1272,7 @@ second_info <- pca_information(
     second, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-second_info$anova_neglogp_heatmap
+second_info[["anova_neglogp_heatmap"]]
 
 third <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
                         filter = TRUE, batch = "svaseq", surrogates = 3) %>%
@@ -1253,7 +1281,7 @@ third_info <- pca_information(
     third, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-third_info$anova_neglogp_heatmap
+third_info[["anova_neglogp_heatmap"]]
 
 fourth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
                          filter = TRUE, batch = "svaseq", surrogates = 4) %>%
@@ -1262,7 +1290,7 @@ fourth_info <- pca_information(
     fourth, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-fourth_info$anova_neglogp_heatmap
+fourth_info[["anova_neglogp_heatmap"]]
 fourth_info[["pca_plots"]][["PC1_PC2"]]
 
 fifth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
@@ -1272,7 +1300,7 @@ fifth_info <- pca_information(
     fifth, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-fifth_info$anova_neglogp_heatmap
+fifth_info[["anova_neglogp_heatmap"]]
 fifth_info[["pca_plots"]][["PC1_PC12"]]
 
 sixth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
@@ -1282,7 +1310,7 @@ sixth_info <- pca_information(
     sixth, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-sixth_info$anova_neglogp_heatmap
+sixth_info[["anova_neglogp_heatmap"]]
 
 seventh <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
                           filter = TRUE, batch = "svaseq", surrogates = 7) %>%
@@ -1291,7 +1319,7 @@ seventh_info <- pca_information(
     seventh, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-seventh_info$anova_neglogp_heatmap
+seventh_info[["anova_neglogp_heatmap"]]
 
 eighth <- normalize_expt(tc_clinical, transform = "log2", convert = "cpm",
                         filter = TRUE, batch = "svaseq", surrogates = 8)
@@ -1299,7 +1327,7 @@ eighth_info <- pca_information(
     eighth, plot_pcas = TRUE, num_components = 30,
     expt_factors = c("visitnumber", "typeofcells",
                      "finaloutcome", "clinic"))
-eighth_info$anova_neglogp_heatmap
+eighth_info[["anova_neglogp_heatmap"]]
 ```
 
 # Variance Partition
@@ -1314,45 +1342,46 @@ of various factors will provide useful/helpful output.
 ```{r}
 ## Mostly running twice to make sure that reordering the factors does not affect the end result.
 tc_varpart <- simple_varpart(
-  tc_clinical_nobiop, factors = c("visitnumber", "typeofcells",
-                                  "finaloutcome", "clinic", "sex", "etnia"))
+  tc_clinical_nobiop,
+  fstring = "~ visitnumber + typeofcells + finaloutcome + clinic + sex + etnia")
 tc_varpart
 
 tc_varpartv2 <- simple_varpart(
-  tc_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells",
-                                  "finaloutcome"))
-pp(file = "images/tc_donor_visit_type_finaloutcome_varpart.pdf")
+  tc_clinical_nobiop,
+  fstring = "~ visitnumber + typeofcells + finaloutcome")
+pp(file = "images/tc_visit_type_finaloutcome_varpart.pdf")
 tc_varpartv2
 dev.off()
-tc_varpartv2
-
-tc_varpartv3 <- simple_varpart(
-  tc_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells"))
+tc_varpartv2 <- simple_varpart(
+  tc_clinical_nobiop,
+  fstring = "~ donor + visitnumber + typeofcells")
 pp(file = "images/tc_donor_visit_type_varpart.pdf")
 tc_varpartv3
 dev.off()
 tc_varpartv3
 
 tc_varpartv4 <- simple_varpart(
-  tc_clinical_nobiop, factors = c("finaloutcome", "sex", "Ethnicity"))
+  tc_clinical_nobiop, fstring = "~ finaloutcome + sex + Ethnicity")
 pp(file = "images/tc_final_sex_ethnicity_varpart.pdf")
 tc_varpartv4
 dev.off()
 tc_varpartv4
 
-t_varpartv3 <- simple_varpart(
-  t_clinical_nobiop, factors = c("donor", "visitnumber", "typeofcells"))
+t_varpartv5 <- simple_varpart(
+  t_clinical_nobiop,
+  fstring = "~ donor + visitnumber + typeofcells")
 pp(file = "images/t_donor_visit_type_varpart.pdf")
-t_varpartv3
+t_varpartv5
 dev.off()
-t_varpartv3
+t_varpartv5
 
-c_varpartv3 <- simple_varpart(
-  c_clinical, factors = c("donor", "visitnumber", "typeofcells"))
+c_varpartv6 <- simple_varpart(
+  c_clinical,
+  fstring = "~ donor + visitnumber + typeofcells")
 pp(file = "images/c_donor_visit_type_varpart.pdf")
-c_varpartv3
+c_varpartv6
 dev.off()
-c_varpartv3
+c_varpartv6
 ```
 
 ## Some factors of later interest
@@ -1371,41 +1400,45 @@ and clinic followed by the same and finaloutcome (as a reference point
 to something we are already looking at).
 
 ```{r}
-table(pData(tc_clinical_nobiop)$typeofcells)
-table(pData(t_clinical_nobiop)$typeofcells)
-table(pData(c_clinical_nobiop)$typeofcells)
-
-tc_fun_varpart <- simple_varpart(tc_clinical_nobiop,
-                                 factors = c("sex", "etnia", "Age", "clinic"))
+table(pData(tc_clinical_nobiop)[["typeofcells"]])
+table(pData(t_clinical_nobiop)[["typeofcells"]])
+table(pData(c_clinical_nobiop)[["typeofcells"]])
+fstring <- "~ sex + etnia + Age + clinic"
+tc_fun_varpart <- simple_varpart(tc_clinical_nobiop, fstring = fstring)
 pp(file = "images/tc_fun_varpart.pdf")
 tc_fun_varpart
 dev.off()
 tc_fun_varpart
-tc_fun_outcome_varpart <- simple_varpart(tc_clinical_nobiop,
-                                         factors = c("sex", "etnia", "Age", "clinic", "finaloutcome"))
+
+fstring <- "~ finaloutcome + sex + etnia + Age + clinic"
+tc_fun_outcome_varpart <- simple_varpart(tc_clinical_nobiop, fstring = fstring)
 pp(file = "images/tc_fun_outcome_varpart.pdf")
 tc_fun_outcome_varpart
 dev.off()
 tc_fun_outcome_varpart
-c_fun_varpart <- simple_varpart(c_clinical_nobiop,
-                                factors = c("sex", "etnia", "Age"))
+
+fstring <- "~ sex + etnia + Age"
+c_fun_varpart <- simple_varpart(c_clinical_nobiop, fstring = fstring)
 pp(file = "images/c_fun_varpart.pdf")
 c_fun_varpart
 dev.off()
-c_fun_outcome_varpart <- simple_varpart(c_clinical_nobiop,
-                                        factors = c("sex", "etnia", "Age", "finaloutcome"))
+
+fstring <- "~ finaloutcome + sex + etnia + Age"
+c_fun_outcome_varpart <- simple_varpart(c_clinical_nobiop, fstring = fstring)
 pp(file = "images/c_fun_outcome_varpart.pdf")
 c_fun_outcome_varpart
 dev.off()
 c_fun_outcome_varpart
-t_fun_varpart <- simple_varpart(t_clinical_nobiop,
-                                factors = c("sex", "etnia", "Age"))
+
+fstring <- "~ sex + etnia + Age"
+t_fun_varpart <- simple_varpart(t_clinical_nobiop, fstring = fstring)
 pp(file = "images/t_fun_varpart.pdf")
 t_fun_varpart
 dev.off()
 t_fun_varpart
-t_fun_outcome_varpart <- simple_varpart(t_clinical_nobiop,
-                                        factors = c("sex", "etnia", "Age", "finaloutcome"))
+
+fstring <- "~ finaloutcome + sex + etnia + Age"
+t_fun_outcome_varpart <- simple_varpart(t_clinial_nobiop, fstring = fstring)
 pp(file = "images/t_fun_outcome_varpart.pdf")
 t_fun_outcome_varpart
 dev.off()
@@ -1479,7 +1512,7 @@ t_biopsies_pca
 t_biopsies_nb <- normalize_expt(t_biopsies, transform = "log2", convert = "cpm",
                                 batch = "svaseq", filter = TRUE)
 t_biopsies_nb_pca <- plot_pca(t_biopsies_nb, plot_labels = FALSE)
-t_biopsies_nb_pca$plot
+t_biopsies_nb_pca[["plot"]]
 ```
 
 ### Visualize: Monocyte samples only Tumaco
@@ -1501,10 +1534,46 @@ t_monocyte_nb <- normalize_expt(t_monocytes, transform = "log2", convert = "cpm"
                                 batch = "svaseq", filter = TRUE)
 t_monocyte_nb_pca <- plot_pca(t_monocyte_nb, plot_labels = FALSE)
 pp(file = "figures/figure4A_monocytes.svg")
-t_monocyte_nb_pca$plot
+t_monocyte_nb_pca[["plot"]]
 dev.off()
-t_monocyte_nb_pca$plot
+t_monocyte_nb_pca[["plot"]]
 ```
+
+Let us take moment to consider degrees of freedom and different
+models.  I have an old function which I recently renamed to
+'test_model_rank()' which puts one factor at the front of the model,
+then iterates over provided factors to test via qr() the rank of each
+new model.  I think I want to repurpose this slightly to work with
+models with > 2 factors.  I also want to print out the sum of levels
+of all factors in a model; which this function sort of does; but I
+think it could/should do so in a more readable/useful fashion.  I
+think to make full use of this I will need to start pulling in code
+from my model testing branch.
+
+One important note, my previous iterations of this were using a sample
+sheet in which we never finished filling out the donor factor.  At one
+level this is not a problem because the tubelableorigin column is the
+same information just with a different prefix.  However, typing
+'donor' makes a lot more sense and it was annoying to have it wrong.
+
+```{r}
+t_eo_test <- subset_expt(t_eosinophils, subset = "donor!='d2052'")
+eo_rank_d <- test_design_model_rank(t_eo_test, "~ donor")
+eo_rank_v <- test_design_model_rank(t_eo_test, "~ visitnumber")
+eo_rank_dv <- test_design_model_rank(t_eo_test, "~ donor + visitnumber")
+
+mo_rank_test <- test_model_rank(pData(t_monocytes), goal = "finaloutcome", factors = "donor")
+mo_rank_expt_test <- test_design_model_rank(t_monocytes, "~ donor + finaloutcome")
+
+ne_rank_test <- test_model_rank(pData(t_neutrophils), goal = "finaloutcome", factors = "donor")
+ne_rank_expt_test <- test_design_model_rank(t_neutrophils, "~ donor + finaloutcome")
+```
+
+```{r}
+t_eo <- subset_expt(t_eosinophils, subset = "donor!='d2052'")
+t_eo_rank <- test_design_model_rank(t_eo, "~ donor + finaloutcome")
+```
+
 
 ### Visualize: Neutrophil samples only Tumaco
 
@@ -1522,9 +1591,9 @@ t_neutrophil_nb <- normalize_expt(t_neutrophils, transform = "log2", convert = "
                                      batch = "svaseq", filter = TRUE)
 t_neutrophil_nb_pca <- plot_pca(t_neutrophil_nb, plot_labels = FALSE)
 pp(file = "figures/figure4A_neutrophils.svg")
-t_neutrophil_nb_pca$plot
+t_neutrophil_nb_pca[["plot"]]
 dev.off()
-t_neutrophil_nb_pca$plot
+t_neutrophil_nb_pca[["plot"]]
 ```
 
 ### Visualize: Eosinophil samples only Tumaco
@@ -1543,9 +1612,9 @@ t_eosinophil_nb <- normalize_expt(t_eosinophils, transform = "log2", convert = "
                                   batch = "svaseq", filter = TRUE)
 t_eosinophil_nb_pca <- plot_pca(t_eosinophil_nb, plot_labels = FALSE)
 pp(file = "figures/figure4A_eosinophils.svg")
-t_eosinophil_nb_pca$plot
+t_eosinophil_nb_pca[["plot"]]
 dev.off()
-t_eosinophil_nb_pca$plot
+t_eosinophil_nb_pca[["plot"]]
 ```
 
 ### Visualize: Look at Cell types C/F by visit
@@ -1562,7 +1631,7 @@ t_monocyte_v1_pca
 t_monocyte_v1_nb <- normalize_expt(t_monocyte_v1, convert = "cpm",
                                    transform = "log2", filter = TRUE, batch = "svaseq")
 t_monocyte_v1_nb_pca <- plot_pca(t_monocyte_v1_nb, plot_labels = FALSE)
-t_monocyte_v1_nb_pca$plot
+t_monocyte_v1_nb_pca[["plot"]]
 ```
 
 #### Monocytes Visit 2
@@ -1572,12 +1641,12 @@ t_monocyte_v2 <- subset_expt(t_monocytes, subset = "visitnumber=='2'")
 t_monocyte_v2_norm <- normalize_expt(t_monocyte_v2, norm = "quant", convert = "cpm",
                                      transform = "log2", filter = TRUE)
 t_monocyte_v2_pca <- plot_pca(t_monocyte_v2_norm, plot_labels = FALSE)
-t_monocyte_v2_pca$plot
+t_monocyte_v2_pca[["plot"]]
 
 t_monocyte_v2_nb <- normalize_expt(t_monocyte_v2, convert = "cpm",
                                    transform = "log2", filter = TRUE, batch = "svaseq")
 t_monocyte_v2_nb_pca <- plot_pca(t_monocyte_v2_nb, plot_labels = FALSE)
-t_monocyte_v2_nb_pca$plot
+t_monocyte_v2_nb_pca[["plot"]]
 ```
 
 #### Monocytes Visit 3
@@ -1592,7 +1661,7 @@ t_monocyte_v3_pca
 t_monocyte_v3_nb <- normalize_expt(t_monocyte_v3, convert = "cpm",
                                    transform = "log2", filter = TRUE, batch = "svaseq")
 t_monocyte_v3_nb_pca <- plot_pca(t_monocyte_v3_nb, plot_labels = FALSE)
-t_monocyte_v3_nb_pca$plot
+t_monocyte_v3_nb_pca[["plot"]]
 ```
 
 #### Neutrophils, Visit 1
@@ -1602,12 +1671,12 @@ t_neutrophil_v1 <- subset_expt(t_neutrophils, subset = "visitnumber=='1'")
 t_neutrophil_v1_norm <- normalize_expt(t_neutrophil_v1, norm = "quant", convert = "cpm",
                                    transform = "log2", filter = TRUE)
 t_neutrophil_v1_pca <- plot_pca(t_neutrophil_v1_norm, plot_labels = FALSE)
-t_neutrophil_v1_pca$plot
+t_neutrophil_v1_pca[["plot"]]
 
 t_neutrophil_v1_nb <- normalize_expt(t_neutrophil_v1, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "ruvg")
 t_neutrophil_v1_nb_pca <- plot_pca(t_neutrophil_v1_nb, plot_labels = FALSE)
-t_neutrophil_v1_nb_pca$plot
+t_neutrophil_v1_nb_pca[["plot"]]
 ```
 
 #### Neutrophils Visit 2
@@ -1622,7 +1691,7 @@ t_neutrophil_v2_pca
 t_neutrophil_v2_nb <- normalize_expt(t_neutrophil_v2, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "svaseq")
 t_neutrophil_v2_nb_pca <- plot_pca(t_neutrophil_v2_nb, plot_labels = FALSE)
-t_neutrophil_v2_nb_pca$plot
+t_neutrophil_v2_nb_pca[["plot"]]
 ```
 
 #### Neutrophils Visit 3
@@ -1637,7 +1706,7 @@ t_neutrophil_v3_pca
 t_neutrophil_v3_nb <- normalize_expt(t_neutrophil_v3, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "svaseq")
 t_neutrophil_v3_nb_pca <- plot_pca(t_neutrophil_v3_nb, plot_labels = FALSE)
-t_neutrophil_v3_nb_pca$plot
+t_neutrophil_v3_nb_pca[["plot"]]
 ```
 
 #### Eosinophils, Visit 1
@@ -1652,7 +1721,7 @@ t_eosinophil_v1_pca
 t_eosinophil_v1_nb <- normalize_expt(t_eosinophil_v1, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "svaseq")
 t_eosinophil_v1_nb_pca <- plot_pca(t_eosinophil_v1_nb, plot_labels = FALSE)
-t_eosinophil_v1_nb_pca$plot
+t_eosinophil_v1_nb_pca[["plot"]]
 ```
 
 #### Eosinophils Visit 2
@@ -1667,7 +1736,7 @@ t_eosinophil_v2_pca
 t_eosinophil_v2_nb <- normalize_expt(t_eosinophil_v2, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "svaseq")
 t_eosinophil_v2_nb_pca <- plot_pca(t_eosinophil_v2_nb, plot_labels = FALSE)
-t_eosinophil_v2_nb_pca$plot
+t_eosinophil_v2_nb_pca[["plot"]]
 ```
 
 #### Eosinophils Visit 3
@@ -1682,7 +1751,7 @@ t_eosinophil_v3_pca
 t_eosinophil_v3_nb <- normalize_expt(t_eosinophil_v3, convert = "cpm",
                                      transform = "log2", filter = TRUE, batch = "svaseq")
 t_eosinophil_v3_nb_pca <- plot_pca(t_eosinophil_v3_nb, plot_labels = FALSE)
-t_eosinophil_v3_nb_pca$plot
+t_eosinophil_v3_nb_pca[["plot"]]
 ```
 
 ## Recategorize: Concatenate cure/fail and cell type
@@ -1727,12 +1796,12 @@ the two clinics from the perspective of clinic.
 t_clinical_concat_norm <- normalize_expt(t_clinical_concat, transform = "log2", convert = "cpm",
                                        norm = "quant", filter = TRUE)
 t_clinical_concat_norm_pca <- plot_pca(t_clinical_concat_norm)
-t_clinical_concat_norm_pca$plot
+t_clinical_concat_norm_pca[["plot"]]
 
 t_clinical_concat_nb <- normalize_expt(t_clinical_concat, transform = "log2", convert = "cpm",
                                        batch = "svaseq", filter = TRUE)
 t_clinical_concat_nb_pca <- plot_pca(t_clinical_concat_nb)
-t_clinical_concat_nb_pca$plot
+t_clinical_concat_nb_pca[["plot"]]
 ```
 
 # Visit comparisons
@@ -1764,7 +1833,7 @@ tc_visit_norm <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2"
                                 convert = "cpm", norm = "quant")
 tc_visit_norm_pca <- plot_pca(tc_visit_norm)
 pp(file = "images/tc_visit_norm_alltypes.pdf")
-tc_visit_norm_pca$plot
+tc_visit_norm_pca[["plot"]]
 dev.off()
 tc_visit_norm_pca
 
@@ -1772,7 +1841,7 @@ tc_visit_nb <- normalize_expt(tc_visit_expt, filter = TRUE, transform = "log2",
                               convert = "cpm", batch = "svaseq")
 tc_visit_nb_pca <- plot_pca(tc_visit_nb)
 pp(file = "images/tc_visit_sva_alltypes.pdf")
-tc_visit_nb_pca$plot
+tc_visit_nb_pca[["plot"]]
 dev.off()
 tc_visit_nb_pca
 
@@ -1785,7 +1854,7 @@ t_visit_norm <- normalize_expt(t_visit_expt, filter = TRUE, transform = "log2",
                                 convert = "cpm", norm = "quant")
 t_visit_norm_pca <- plot_pca(t_visit_norm)
 pp(file = "images/t_visit_norm_alltypes.pdf")
-t_visit_norm_pca$plot
+t_visit_norm_pca[["plot"]]
 dev.off()
 t_visit_norm_pca
 
@@ -1793,7 +1862,7 @@ t_visit_nb <- normalize_expt(t_visit_expt, filter = TRUE, transform = "log2",
                              convert = "cpm", batch = "svaseq")
 t_visit_nb_pca <- plot_pca(t_visit_nb)
 pp(file = "images/t_visit_sva_alltypes.pdf")
-t_visit_nb_pca$plot
+t_visit_nb_pca[["plot"]]
 dev.off()
 t_visit_nb_pca
 
@@ -1803,7 +1872,7 @@ t_visit_clinical_norm <- normalize_expt(t_visit_clinical_expt, filter = TRUE, tr
                                         convert = "cpm", norm = "quant")
 t_visit_clinical_norm_pca <- plot_pca(t_visit_clinical_norm)
 pp(file = "images/t_visit_clinical_norm_alltypes.pdf")
-t_visit_clinical_norm_pca$plot
+t_visit_clinical_norm_pca[["plot"]]
 dev.off()
 t_visit_clinical_norm_pca
 
@@ -1811,7 +1880,7 @@ t_visit_clinical_nb <- normalize_expt(t_visit_clinical_expt, filter = TRUE,
                                       transform = "log2", convert = "cpm", batch = "svaseq")
 t_visit_clinical_nb_pca <- plot_pca(t_visit_clinical_nb)
 pp(file = "images/t_visit_nobiop_sva_alltypes.pdf")
-t_visit_clinical_nb_pca$plot
+t_visit_clinical_nb_pca[["plot"]]
 dev.off()
 t_visit_clinical_nb_pca
 ```
@@ -1834,13 +1903,13 @@ tv1_pca <- plot_pca(tv1_norm)
 pp(file = "images/tv1_pca.pdf")
 tv1_pca
 dev.off()
-tv1_pca$plot
+tv1_pca[["plot"]]
 
 tv1_nb <- normalize_expt(tv1_samples, transform = "log2", convert = "cpm",
                          filter = TRUE, batch = "svaseq")
 tv1_nb_pca <- plot_pca(tv1_nb, plot_labels = FALSE)
 pp(file = "images/tv1_sva_pca.pdf")
-tv1_nb_pca$plot
+tv1_nb_pca[["plot"]]
 dev.off()
 tv1_nb_pca
 ```
@@ -1855,13 +1924,13 @@ tv2_pca <- plot_pca(tv2_norm)
 pp(file = "images/tv2_pca.pdf")
 tv2_pca
 dev.off()
-tv2_pca$plot
+tv2_pca[["plot"]]
 
 tv2_nb <- normalize_expt(tv2_samples, transform = "log2", convert = "cpm",
                          filter = TRUE, batch = "svaseq")
 tv2_nb_pca <- plot_pca(tv2_nb, plot_labels = FALSE)
 pp(file = "images/tv2_sva_pca.pdf")
-tv2_nb_pca$plot
+tv2_nb_pca[["plot"]]
 dev.off()
 tv2_nb_pca
 ```
@@ -1876,13 +1945,13 @@ tv3_pca <- plot_pca(tv3_norm)
 pp(file = "images/tv3_pca.pdf")
 tv3_pca
 dev.off()
-tv3_pca$plot
+tv3_pca[["plot"]]
 
 tv3_nb <- normalize_expt(tv3_samples, transform = "log2", convert = "cpm",
                          filter = TRUE, batch = "svaseq")
 tv3_nb_pca <- plot_pca(tv3_nb, plot_labels = FALSE)
 pp(file = "images/tv3_sva_pca.pdf")
-tv3_nb_pca$plot
+tv3_nb_pca[["plot"]]
 dev.off()
 tv3_nb_pca
 ```
@@ -1905,18 +1974,18 @@ t_visitcf_monocyte_norm <- normalize_expt(t_visitcf_monocyte, norm = "quant", co
                                 transform = "log2", filter = TRUE)
 t_visitcf_monocyte_pca <- plot_pca(t_visitcf_monocyte_norm, plot_labels = FALSE)
 pp(file = "images/t_monocyte_visitcf_norm_pca.pdf")
-t_visitcf_monocyte_pca$plot
+t_visitcf_monocyte_pca[["plot"]]
 dev.off()
 t_visitcf_monocyte_pca
 
 t_visitcf_monocyte_disheat <- plot_disheat(t_visitcf_monocyte_norm)
-t_visitcf_monocyte_disheat$plot
+t_visitcf_monocyte_disheat[["plot"]]
 
 t_visitcf_monocyte_nb <- normalize_expt(t_visitcf_monocyte, convert = "cpm",
                                     transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_monocyte_nb_pca <- plot_pca(t_visitcf_monocyte_nb, plot_labels = FALSE)
 pp(file = "images/t_monocyte_visitcf_sva_pca.pdf")
-t_visitcf_monocyte_nb_pca$plot
+t_visitcf_monocyte_nb_pca[["plot"]]
 dev.off()
 t_visitcf_monocyte_nb_pca
 ```
@@ -1931,18 +2000,18 @@ t_visitcf_eosinophil_norm <- normalize_expt(t_visitcf_eosinophil, norm = "quant"
                                 transform = "log2", filter = TRUE)
 t_visitcf_eosinophil_pca <- plot_pca(t_visitcf_eosinophil_norm, plot_labels = FALSE)
 pp(file = "images/t_eosinophil_visitcf_norm_pca.pdf")
-t_visitcf_eosinophil_pca$plot
+t_visitcf_eosinophil_pca[["plot"]]
 dev.off()
 t_visitcf_eosinophil_pca
 
 t_visitcf_eosinophil_disheat <- plot_disheat(t_visitcf_eosinophil_norm)
-t_visitcf_eosinophil_disheat$plot
+t_visitcf_eosinophil_disheat[["plot"]]
 
 t_visitcf_eosinophil_nb <- normalize_expt(t_visitcf_eosinophil, convert = "cpm",
                                     transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_eosinophil_nb_pca <- plot_pca(t_visitcf_eosinophil_nb, plot_labels = FALSE)
 pp(file = "images/t_eosinophil_visitcf_sva_pca.pdf")
-t_visitcf_eosinophil_nb_pca$plot
+t_visitcf_eosinophil_nb_pca[["plot"]]
 dev.off()
 t_visitcf_eosinophil_nb_pca
 ```
@@ -1954,18 +2023,18 @@ t_visitcf_neutrophil_norm <- normalize_expt(t_visitcf_neutrophil, norm = "quant"
                                 transform = "log2", filter = TRUE)
 t_visitcf_neutrophil_pca <- plot_pca(t_visitcf_neutrophil_norm, plot_labels = FALSE)
 pp(file = "images/t_neutrophil_visitcf_norm_pca.pdf")
-t_visitcf_neutrophil_pca$plot
+t_visitcf_neutrophil_pca[["plot"]]
 dev.off()
 t_visitcf_neutrophil_pca
 
 t_visitcf_neutrophil_disheat <- plot_disheat(t_visitcf_neutrophil_norm)
-t_visitcf_neutrophil_disheat$plot
+t_visitcf_neutrophil_disheat[["plot"]]
 
 t_visitcf_neutrophil_nb <- normalize_expt(t_visitcf_neutrophil, convert = "cpm",
                                           transform = "log2", filter = TRUE, batch = "svaseq")
 t_visitcf_neutrophil_nb_pca <- plot_pca(t_visitcf_neutrophil_nb, plot_labels = FALSE)
 pp(file = "images/t_neutrophil_visitcf_sva_pca.pdf")
-t_visitcf_neutrophil_nb_pca$plot
+t_visitcf_neutrophil_nb_pca[["plot"]]
 dev.off()
 t_visitcf_neutrophil_nb_pca
 ```
@@ -1979,7 +2048,7 @@ the sva modified result and print out pdfs thereof.  Once again, we
 are repeating 3 times, once for each cell type.
 
 ```{r}
-t_visit_monocyte <- set_expt_conditions(t_visitcf_monocyte, prefix = "v",
+t_visit_monocyte <- set_expt_conditions(t_visitcf_monocyte,
                                         fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
@@ -2005,7 +2074,7 @@ t_visitcf_monocyte_nb_pca
 #### Celltypes by visit, C/F batch: Eosinophils
 
 ```{r}
-t_visit_eosinophil <- set_expt_conditions(t_visitcf_eosinophil, prefix = "v",
+t_visit_eosinophil <- set_expt_conditions(t_visitcf_eosinophil,
                                             fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
@@ -2030,7 +2099,7 @@ t_visit_eosinophil_nb_pca
 #### Celltypes by visit, C/F batch: Neutrophils
 
 ```{r}
-t_visit_neutrophil <- set_expt_conditions(t_visitcf_neutrophil, prefix = "v",
+t_visit_neutrophil <- set_expt_conditions(t_visitcf_neutrophil,
                                           fact = "visitnumber") %>%
   set_expt_batches("finaloutcome") %>%
   set_expt_colors(color_choices[["visit"]])
@@ -2062,40 +2131,40 @@ See if there are any patterns which look usable.
 ## All
 t_persistence_norm <- normalize_expt(t_persistence, transform = "log2", convert = "cpm",
                                    norm = "quant", filter = TRUE)
-plot_pca(t_persistence_norm)$plot
+plot_pca(t_persistence_norm)[["plot"]]
 t_persistence_nb <- normalize_expt(t_persistence, transform = "log2", convert = "cpm",
                                  batch = "svaseq", filter = TRUE)
-plot_pca(t_persistence_nb)$plot
+plot_pca(t_persistence_nb)[["plot"]]
 
 ## Biopsies
 ##persistence_biopsy_norm <- normalize_expt(persistence_biopsy, transform = "log2", convert = "cpm",
 ##                                   norm = "quant", filter = TRUE)
-##plot_pca(persistence_biopsy_norm)$plot
+##plot_pca(persistence_biopsy_norm)[["plot"]]
 ## Insufficient data
 
 ## Monocytes
 t_persistence_monocyte_norm <- normalize_expt(t_persistence_monocyte, transform = "log2", convert = "cpm",
                                               norm = "quant", filter = TRUE)
-plot_pca(t_persistence_monocyte_norm)$plot
+plot_pca(t_persistence_monocyte_norm)[["plot"]]
 t_persistence_monocyte_nb <- normalize_expt(t_persistence_monocyte, transform = "log2", convert = "cpm",
                                  batch = "svaseq", filter = TRUE)
-plot_pca(t_persistence_monocyte_nb)$plot
+plot_pca(t_persistence_monocyte_nb)[["plot"]]
 
 ## Neutrophils
 t_persistence_neutrophil_norm <- normalize_expt(t_persistence_neutrophil, transform = "log2", convert = "cpm",
                                                 norm = "quant", filter = TRUE)
-plot_pca(t_persistence_neutrophil_norm)$plot
+plot_pca(t_persistence_neutrophil_norm)[["plot"]]
 t_persistence_neutrophil_nb <- normalize_expt(t_persistence_neutrophil, transform = "log2", convert = "cpm",
                                  batch = "svaseq", filter = TRUE)
-plot_pca(t_persistence_neutrophil_nb)$plot
+plot_pca(t_persistence_neutrophil_nb)[["plot"]]
 
 ## Eosinophils
 t_persistence_eosinophil_norm <- normalize_expt(t_persistence_eosinophil, transform = "log2", convert = "cpm",
                                    norm = "quant", filter = TRUE)
-plot_pca(t_persistence_eosinophil_norm)$plot
+plot_pca(t_persistence_eosinophil_norm)[["plot"]]
 t_persistence_eosinophil_nb <- normalize_expt(t_persistence_eosinophil, transform = "log2", convert = "cpm",
                                  batch = "svaseq", filter = TRUE)
-plot_pca(t_persistence_eosinophil_nb)$plot
+plot_pca(t_persistence_eosinophil_nb)[["plot"]]
 ```
 
 # Classify me!
@@ -2311,11 +2380,11 @@ our_biopsies <- set_expt_conditions(t_biopsies, "finaloutcome") %>%
   set_expt_colors(color_choices[["cf"]])
 our_biopsies_norm <- normalize_expt(our_biopsies, filter = TRUE, transform = "log2",
                                     convert = "cpm", batch = "svaseq")
-plot_pca(our_biopsies_norm)$plot
+plot_pca(our_biopsies_norm)[["plot"]]
 
 scott_biopsies_norm <- normalize_expt(external_cf, filter = TRUE, transform = "log2",
                                       convert = "cpm", batch = "svaseq")
-plot_pca(scott_biopsies_norm)$plot
+plot_pca(scott_biopsies_norm)[["plot"]]
 ```
 
 ## Visualize them together
@@ -2323,21 +2392,21 @@ plot_pca(scott_biopsies_norm)$plot
 ```{r}
 both_norm <- normalize_expt(tmrc3_external, filter = TRUE, transform = "log2",
                              convert = "cpm", norm = "quant")
-plot_pca(both_norm)$plot
+plot_pca(both_norm)[["plot"]]
 both_nb <- normalize_expt(tmrc3_external, filter = TRUE, transform = "log2",
                            convert = "cpm", batch = "svaseq")
-plot_pca(both_nb)$plot
+plot_pca(both_nb)[["plot"]]
 
 external_species <- set_expt_conditions(tmrc3_external, fact = "ParasiteSpecies") %>%
   subset_expt(subset = "ParasiteSpecies!='notapplicable'") %>%
   set_expt_batches(fact = "lab")
 
-tt <- normalize_expt(external_species, transform = "log2", convert = "cpm", norm = "quant",
+external_norm <- normalize_expt(external_species, transform = "log2", convert = "cpm", norm = "quant",
+                                filter = TRUE)
+plot_pca(external_norm)
+external_nb <- normalize_expt(external_species, transform = "log2", convert = "cpm", batch = "svaseq",
                      filter = TRUE)
-plot_pca(tt)
-ttt <- normalize_expt(external_species, transform = "log2", convert = "cpm", batch = "svaseq",
-                     filter = TRUE)
-plot_pca(ttt)
+plot_pca(external_nb)
 ```
 
 # Parasite distribution
@@ -2472,7 +2541,7 @@ SVA found 4 SV’s. We can plot them individually to visually inspect
 their separation w.r.t some metadata.
 
 ```{r}
-svs <- as.data.frame(svobj$sv)
+svs <- as.data.frame(svobj[["sv"]])
 colnames(svs) <- paste0("sv_", seq(1:4))
 svs <- cbind(svs, pheno)
 
